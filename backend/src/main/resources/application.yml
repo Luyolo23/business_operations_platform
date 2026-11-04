@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: ops-assistant
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/opsdb}
+    username: ${DB_USER:ops}
+    password: ${DB_PASSWORD:ops}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none        # schema is owned by Flyway (db/migration). Never let Hibernate change it.
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  timezone: Africa/Johannesburg
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}   # >= 32 bytes
+    expiration-minutes: 480
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  seed:
+    enabled: true           # creates demo users (+ demo tickets) when the users table is empty
+    demo-tickets: true
+  ai:
+    provider: ${AI_PROVIDER:mock}          # mock = keyword classifier + templates | llm = OpenAI-compatible API
+    base-url: ${AI_BASE_URL:https://api.groq.com/openai/v1}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:llama-3.3-70b-versatile}
+    timeout-seconds: 20

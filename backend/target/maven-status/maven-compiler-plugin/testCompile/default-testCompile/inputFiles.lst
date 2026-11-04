@@ -1,0 +1,3 @@
+/home/luyolo/business_operations_platform/backend/src/test/java/com/capaciti/ops/ai/KeywordTicketClassifierTest.java
+/home/luyolo/business_operations_platform/backend/src/test/java/com/capaciti/ops/compliance/BiasCheckerTest.java
+/home/luyolo/business_operations_platform/backend/src/test/java/com/capaciti/ops/forecast/LinearTrendTest.java
