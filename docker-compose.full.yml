@@ -1,0 +1,42 @@
+name: ops-full          # separate project, so it never clashes with your dev database
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: opsdb
+      POSTGRES_USER: ops
+      POSTGRES_PASSWORD: ops
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ops -d opsdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/opsdb
+      DB_USER: ops
+      DB_PASSWORD: ops
+      JWT_SECRET: ${JWT_SECRET:-replace-this-with-a-long-random-string-of-32-plus-chars}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-openai/gpt-oss-120b}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+
+volumes:
+  pgdata:
