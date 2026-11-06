@@ -29,6 +29,10 @@ public class User {
     @Column(name = "department")
     private Category department;
 
+    /** False when an admin has deactivated the account (soft delete). */
+    @Column(name = "active", nullable = false)
+    private boolean active = true;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -50,7 +54,9 @@ public class User {
     public Category getDepartment() { return department; }
     public void setDepartment(Category department) { this.department = department; }
 
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
+
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
-
 }

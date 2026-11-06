@@ -51,7 +51,7 @@ public class Ticket {
     private Instant createdAt = Instant.now();
 
     @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    private Instant updatedAt = Instant.now();
 
     @Column(name = "first_response_at")
     private Instant firstResponseAt;

@@ -1,2 +1,7 @@
-../../../business_operations_platform/frontend/node_modules
-dist
+node_modules/
+dist/
+.git/
+*.md
+.env
+.env.local
+.gitignore

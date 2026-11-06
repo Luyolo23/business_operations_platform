@@ -29,11 +29,11 @@ app:
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
   seed:
-    enabled: true           # creates demo users (+ demo tickets) when the users table is empty
-    demo-tickets: true
+    enabled: false          # ⚠ false in production! Enable in application-dev.yml (--spring.profiles.active=dev)
+    demo-tickets: false
   ai:
     provider: ${AI_PROVIDER:mock}          # mock = keyword classifier + templates | llm = OpenAI-compatible API
     base-url: ${AI_BASE_URL:https://api.groq.com/openai/v1}
     api-key: ${AI_API_KEY:}
-    model: ${AI_MODEL:llama-3.3-70b-versatile}
+    model: ${AI_MODEL:openai/gpt-oss-120b}
     timeout-seconds: 20

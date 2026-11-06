@@ -8,6 +8,6 @@ public record AiProperties(
         @DefaultValue("mock") String provider,
         @DefaultValue("https://api.groq.com/openai/v1") String baseUrl,
         @DefaultValue("") String apiKey,
-        @DefaultValue("llama-3.3-70b-versatile") String model,
+        @DefaultValue("openai/gpt-oss-120b") String model,
         @DefaultValue("20") int timeoutSeconds) {
 }

@@ -1,0 +1,11 @@
+# application-dev.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Settings that ONLY apply when the Spring profile "dev" is active.
+# Activate with: SPRING_PROFILES_ACTIVE=dev  (or -Dspring.profiles.active=dev)
+# The Makefile and mvn spring-boot:run targets set this automatically.
+# ─────────────────────────────────────────────────────────────────────────────
+
+app:
+  seed:
+    enabled: true          # auto-create demo users when the DB is empty
+    demo-tickets: true     # seed ~80 historical tickets for the dashboard

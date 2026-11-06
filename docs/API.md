@@ -1,0 +1,120 @@
+# API Reference
+
+Base URL (local dev): `http://localhost:8080`  
+All endpoints except Auth require `Authorization: Bearer <token>`.  
+Full interactive docs: **http://localhost:8080/swagger-ui.html**
+
+---
+
+## Authentication  `/api/auth`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/auth/register` | None | Self-register as EMPLOYEE. Body: `{fullName, email, password}` |
+| `POST` | `/api/auth/login` | None | Login. Body: `{email, password}`. Returns `{token, expiresInSeconds, user}` |
+| `GET`  | `/api/auth/me` | Any | Returns the currently authenticated user |
+
+---
+
+## Tickets  `/api/tickets`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/tickets` | Any | Create a ticket. Body: `{title, description}`. Auto-classifies and routes. |
+| `GET`  | `/api/tickets` | Any | List tickets (paginated). Query: `?category=IT&status=OPEN&page=0&size=20` |
+| `GET`  | `/api/tickets/{id}` | Any | Get a single ticket (employees see only their own) |
+| `PATCH`| `/api/tickets/{id}/status` | AGENT+ | Update status. Body: `{status}` |
+| `PATCH`| `/api/tickets/{id}/classification` | AGENT+ | Re-classify. Body: `{category, priority}` |
+| `PATCH`| `/api/tickets/{id}/assignee` | MANAGER+ | Reassign. Body: `{userId}` |
+| `GET`  | `/api/tickets/{id}/responses` | Any | List all drafted responses for a ticket |
+| `POST` | `/api/tickets/{id}/responses` | AGENT+ | Draft an AI reply. Body: `{tone: FORMAL\|FRIENDLY\|URGENT}` |
+
+---
+
+## Approvals  `/api/approvals`  *(MANAGER+)*
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/approvals` | MANAGER+ | List approvals. Query: `?status=PENDING` |
+| `POST` | `/api/approvals/{id}/decision` | MANAGER+ | Approve or reject. Body: `{approve: true, comment: "..."}` |
+
+---
+
+## Notifications  `/api/notifications`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/notifications` | Any | List the caller's notifications |
+| `POST` | `/api/notifications/{id}/read` | Any | Mark a notification as read |
+
+---
+
+## Analytics  `/api/analytics`  *(MANAGER+)*
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/analytics/summary` | MANAGER+ | Aggregate stats. Query: `?days=30&category=IT` |
+| `GET`  | `/api/analytics/insights` | MANAGER+ | AI-generated narrative insights |
+
+---
+
+## Forecast  `/api/forecast`  *(MANAGER+)*
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/forecast` | MANAGER+ | Predicted ticket volume. Query: `?horizonDays=7` |
+
+---
+
+## Reports  `/api/reports`  *(MANAGER+)*
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/reports/weekly` | MANAGER+ | Weekly report JSON. Query: `?department=IT` |
+| `GET`  | `/api/reports/weekly/pdf` | MANAGER+ | Download weekly report as PDF |
+
+---
+
+## Compliance  `/api/compliance`  *(MANAGER+)*
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/compliance/report` | MANAGER+ | Risk summary. Query: `?days=30` |
+| `GET`  | `/api/compliance/audit` | MANAGER+ | Paginated audit log. Query: `?page=0&size=20` |
+
+---
+
+## Users  `/api/users`  *(staff list MANAGER+, all other operations ADMIN)*
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/users/staff` | MANAGER+ | All AGENT and MANAGER accounts (for assignment) |
+| `GET`  | `/api/users` | ADMIN | All user accounts |
+| `POST` | `/api/users` | ADMIN | Create a staff/admin account. Body: `{fullName, email, password, role, department}` |
+| `PATCH`| `/api/users/{id}/deactivate` | ADMIN | Soft-deactivate a user account |
+| `PATCH`| `/api/users/{id}/activate` | ADMIN | Reactivate a deactivated account |
+
+---
+
+## Error Responses
+
+All errors return a consistent JSON envelope:
+
+```json
+{
+  "timestamp": "2026-11-06T10:00:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Validation failed",
+  "details": { "email": "must not be blank" }
+}
+```
+
+| Status | When |
+|--------|------|
+| 400 | Validation failure or bad request body |
+| 401 | Missing or invalid/expired JWT |
+| 403 | Authenticated but insufficient role |
+| 404 | Resource not found |
+| 409 | Conflict (e.g. duplicate email) |
+| 500 | Unexpected server error (see backend logs) |

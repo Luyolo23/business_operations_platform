@@ -144,21 +144,23 @@ textarea { font-family: var(--prose); font-size: 17px; line-height: 1.55; min-he
 .pill-btn[aria-pressed='true'] { background: var(--pine); color: #fff; border-color: var(--pine); }
 .doc { max-width: 760px; } .doc h2 { margin: 28px 0 10px; font-size: 18px; } .doc ul { font-family: var(--prose); font-size: 17px; line-height: 1.6; padding-left: 20px; }
 
-/* ---------- sign in ---------- */
-.signin { min-height: 100vh; display: grid; grid-template-columns: 1.1fr 1fr; }
-.signin-art { background: var(--pine-deep); color: #E6F0ED; padding: 64px 56px; display: flex; flex-direction: column; justify-content: space-between; gap: 40px; }
-.signin-art h1 { font-size: clamp(2.2rem, 4vw, 3.4rem); line-height: 1.04; letter-spacing: -0.025em; max-width: 14ch; color: #fff; }
-.teams { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; max-width: 420px; }
-.teams li { display: grid; grid-template-columns: 14px 1fr; gap: 14px; align-items: start; }
-.teams .dot { width: 14px; height: 14px; margin-top: 4px; } .teams strong { display: block; color: #fff; } .teams span { color: #A9C2BC; }
-.signin-form { padding: 64px 56px; display: flex; flex-direction: column; justify-content: center; max-width: 520px; width: 100%; margin: 0 auto; }
-.signin-form h2 { font-size: 26px; margin-bottom: 18px; }
+/* ---------- sign in: form left, animated workflow right ---------- */
+.signin { min-height: 100vh; display: grid; grid-template-columns: minmax(360px, 520px) minmax(0, 1fr); }
+.signin-form { padding: 64px 56px; display: flex; flex-direction: column; justify-content: center; width: 100%; }
+.signin-form h1 { font-size: clamp(1.9rem, 3vw, 2.4rem); font-weight: 700; letter-spacing: -0.025em; line-height: 1.1; }
+.signin-sub { font-family: var(--prose); font-size: 17px; color: var(--ink-2); margin: 10px 0 28px; max-width: 42ch; }
 .switch { margin-top: 16px; color: var(--ink-2); } .switch button { background: none; border: 0; padding: 0; font: inherit; color: var(--pine); text-decoration: underline; cursor: pointer; }
 .try { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); } .try p { margin-bottom: 10px; color: var(--ink-2); }
+.signin-viz { position: relative; display: flex; flex-direction: column; min-height: 100vh; padding: 48px 48px 32px; overflow: hidden; color: #E6F0ED;
+  background: radial-gradient(120% 80% at 70% 20%, #0F4A45 0%, #08302D 45%, #04201F 100%); }
+.viz-copy { position: relative; z-index: 1; max-width: 520px; }
+.viz-copy h2 { font-size: clamp(1.8rem, 2.8vw, 2.6rem); font-weight: 700; line-height: 1.06; letter-spacing: -0.025em; color: #fff; max-width: 16ch; }
+.viz-copy p { font-family: var(--prose); font-size: 17px; line-height: 1.55; color: #A9C9C2; margin-top: 12px; max-width: 46ch; }
+.viz-fallback { flex: 1; min-height: 440px; }
 
 @media (max-width: 900px) {
   .split { grid-template-columns: 1fr; gap: 28px; }
-  .signin { grid-template-columns: 1fr; } .signin-art { padding: 36px 24px; } .signin-form { padding: 32px 24px; }
+  .signin { grid-template-columns: 1fr; } .signin-form { padding: 36px 24px 40px; } .signin-viz { min-height: auto; padding: 36px 20px 28px; }
   .page { padding: 28px 18px 64px; } .topbar { padding: 12px 18px; gap: 14px; }
   .queue a { grid-template-columns: 1fr; } .queue .side { grid-column: 1; grid-row: auto; align-items: flex-start; text-align: left; flex-direction: row; gap: 14px; }
   .queue .snippet { white-space: normal; }

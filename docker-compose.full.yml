@@ -1,12 +1,22 @@
-name: ops-full          # separate project, so it never clashes with your dev database
+name: ops-full          # separate project — never clashes with the dev postgres compose
+
+# ─── How to use ───────────────────────────────────────────────────────────────
+# 1. Copy .env.example to .env and fill in your values (especially JWT_SECRET and AI_API_KEY).
+# 2. docker compose -f docker-compose.full.yml up --build
+# 3. Open http://localhost:8081  (frontend via Nginx, proxied to the backend)
+#    Or   http://localhost:8080  (backend Swagger UI: /swagger-ui.html)
+# ─────────────────────────────────────────────────────────────────────────────
 
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: opsdb
-      POSTGRES_USER: ops
-      POSTGRES_PASSWORD: ops
+      POSTGRES_DB:       opsdb
+      POSTGRES_USER:     ops
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ops}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -15,26 +25,45 @@ services:
       timeout: 3s
       retries: 10
 
+  # ── Spring Boot backend ─────────────────────────────────────────────────────
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/opsdb
-      DB_USER: ops
-      DB_PASSWORD: ops
-      JWT_SECRET: ${JWT_SECRET:-replace-this-with-a-long-random-string-of-32-plus-chars}
+      DB_URL:      jdbc:postgresql://postgres:5432/opsdb
+      DB_USER:     ops
+      DB_PASSWORD: ${DB_PASSWORD:-ops}
+      JWT_SECRET:  ${JWT_SECRET:?Set JWT_SECRET in your .env file (min 32 chars)}
       AI_PROVIDER: ${AI_PROVIDER:-mock}
-      AI_API_KEY: ${AI_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-openai/gpt-oss-120b}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.groq.com/openai/v1}
+      AI_API_KEY:  ${AI_API_KEY:-}
+      AI_MODEL:    ${AI_MODEL:-openai/gpt-oss-120b}
+      CORS_ORIGINS: http://localhost:8081
+      # Seeder is off by default; set SPRING_PROFILES_ACTIVE=dev to enable demo data
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
+  # ── React + Nginx frontend ──────────────────────────────────────────────────
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "8081:80"
 

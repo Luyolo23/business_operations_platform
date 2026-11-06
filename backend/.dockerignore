@@ -1,0 +1,9 @@
+# Exclude large directories & generated files from the Docker build context.
+# This dramatically speeds up docker build (no 100 MB node_modules sent).
+
+target/
+.git/
+*.md
+.gitignore
+.env
+.env.local

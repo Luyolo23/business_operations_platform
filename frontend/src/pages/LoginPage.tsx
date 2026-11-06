@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
-import { CATEGORIES } from '../api/types';
-import { DEPT_BLURB, DEPT_LABEL, DEPT_VAR } from '../theme';
+
+// The 3D scene is loaded on demand so the form is interactive immediately.
+const WorkflowScene = lazy(() => import('../components/workflow/WorkflowScene'));
 
 const DEMO = [
   { label: 'an employee', email: 'employee@ops.local' },
@@ -38,22 +39,13 @@ export default function LoginPage() {
 
   return (
     <div className="signin">
-      <section className="signin-art">
-        <div>
-          <h1>Tell us what you need. We’ll get it to the right people.</h1>
-        </div>
-        <ul className="teams">
-          {CATEGORIES.map((c) => (
-            <li key={c}>
-              <i className="dot" style={{ background: DEPT_VAR[c] }} />
-              <div><strong>{DEPT_LABEL[c]}</strong><span>{DEPT_BLURB[c]}</span></div>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       <section className="signin-form">
-        <h2>{mode === 'login' ? 'Sign in' : 'Create your account'}</h2>
+        <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
+        <p className="signin-sub">
+          {mode === 'login'
+            ? 'Sign in to raise a request, follow it from first reply to resolution, and see what your team is working on.'
+            : 'Raise requests to HR, IT, Finance or Operations and follow each one until it is resolved.'}
+        </p>
         <form onSubmit={submit}>
           {mode === 'register' && (
             <div className="field"><label htmlFor="n">Full name</label><input id="n" value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="name" /></div>
@@ -79,6 +71,16 @@ export default function LoginPage() {
             ))}
           </div>
         </div>
+      </section>
+
+      <section className="signin-viz" aria-label="How the platform works">
+        <div className="viz-copy">
+          <h2>Smarter requests. Faster resolutions.</h2>
+          <p>Every request is read, sorted and sent to the right team in seconds. AI drafts the reply, a safety check reviews it, and a person approves anything risky.</p>
+        </div>
+        <Suspense fallback={<div className="viz-fallback" aria-hidden="true" />}>
+          <WorkflowScene />
+        </Suspense>
       </section>
     </div>
   );

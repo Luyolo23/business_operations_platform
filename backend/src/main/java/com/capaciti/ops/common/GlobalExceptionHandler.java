@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -61,6 +62,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiError> methodNotAllowed(HttpRequestMethodNotSupportedException e) {
         return build(HttpStatus.METHOD_NOT_ALLOWED, e.getMessage());
+    }
+
+    /**
+     * Handles unique-constraint violations (e.g. duplicate email).
+     * Returns 409 Conflict instead of leaking a 500 with a SQL stack trace.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> dataIntegrity(DataIntegrityViolationException e) {
+        log.warn("Data integrity violation: {}", e.getMostSpecificCause().getMessage());
+        String msg = e.getMostSpecificCause().getMessage();
+        if (msg != null && msg.contains("email")) {
+            return build(HttpStatus.CONFLICT, "A user with that email address already exists");
+        }
+        return build(HttpStatus.CONFLICT, "A duplicate record already exists");
     }
 
     @ExceptionHandler(Exception.class)

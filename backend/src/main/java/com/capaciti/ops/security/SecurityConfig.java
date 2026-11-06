@@ -40,9 +40,17 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PATCH, "/api/tickets/*/status", "/api/tickets/*/classification")
                         .hasAnyRole("AGENT", "MANAGER", "ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/tickets/*/assignee").hasAnyRole("MANAGER", "ADMIN")
-                // managers / admins only
+                // managers / admins only (read-only views)
                 .requestMatchers("/api/approvals/**", "/api/analytics/**", "/api/forecast/**",
-                        "/api/reports/**", "/api/compliance/**", "/api/users/**").hasAnyRole("MANAGER", "ADMIN")
+                        "/api/reports/**", "/api/compliance/**").hasAnyRole("MANAGER", "ADMIN")
+                // Keep /staff before the broader matcher: managers need the assignable staff list,
+                // but only admins may list every account.
+                .requestMatchers(HttpMethod.GET, "/api/users/staff").hasAnyRole("MANAGER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/users", "/api/users/**").hasRole("ADMIN")
+                // admin only: create / deactivate / activate user accounts
+                .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/users/*/deactivate",
+                        "/api/users/*/activate").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
