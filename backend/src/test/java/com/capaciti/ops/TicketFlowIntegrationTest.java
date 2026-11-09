@@ -1,7 +1,9 @@
 package com.capaciti.ops;
 
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -183,6 +185,128 @@ class TicketFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("RESOLVED"))
                 .andExpect(jsonPath("$.resolvedAt").value(notNullValue()));
+    }
+
+    @Test
+    void requesterCanConfirmThatTheProblemIsSolved() throws Exception {
+        String employee = login("employee@ops.local");
+        long id = createTicket(employee, "VPN not working", "I cannot connect to the VPN from my laptop")
+                .get("id").asLong();
+        String agent = login("agent.it@ops.local");
+        writeReply(agent, id, "Please restart the VPN client and try again.");
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", employee)
+                        .contentType(JSON).content("{\"confirmed\":true,\"comment\":\"Working now, thanks\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.requesterConfirmedAt").value(notNullValue()))
+                .andExpect(jsonPath("$.requesterFeedback").value("Working now, thanks"));
+    }
+
+    @Test
+    void requesterCanReopenATicketThatIsStillBroken() throws Exception {
+        String employee = login("employee@ops.local");
+        long id = createTicket(employee, "Printer offline", "The office printer shows an error")
+                .get("id").asLong();
+        String agent = login("agent.it@ops.local");
+        writeReply(agent, id, "Please power the printer off and on again.");
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", employee)
+                        .contentType(JSON).content("{\"confirmed\":false,\"comment\":\"Still showing an error\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.resolvedAt").value(nullValue()))
+                .andExpect(jsonPath("$.requesterFeedback").value("Still showing an error"));
+    }
+
+    @Test
+    void onlyTheRequesterCanConfirmAResolution() throws Exception {
+        String employee = login("employee@ops.local");
+        long id = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        String agent = login("agent.it@ops.local");
+        writeReply(agent, id, "A laptop has been ordered for you.");
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", agent)
+                        .contentType(JSON).content("{\"confirmed\":true}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanSwitchAnAccountOffAndOnAgain() throws Exception {
+        String admin = login("admin@ops.local");
+        String email = "switch-me-" + System.nanoTime() + "@ops.local";
+        String body = mvc.perform(post("/api/users").header("Authorization", admin).contentType(JSON)
+                        .content(json.writeValueAsString(Map.of("fullName", "Switch Person", "email", email,
+                                "password", "Passw0rd!", "role", "EMPLOYEE"))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = json.readTree(body).get("id").asLong();
+
+        mvc.perform(patch("/api/users/" + id + "/deactivate").header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+        mvc.perform(patch("/api/users/" + id + "/activate").header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(true));
+    }
+
+    @Test
+    void adminCanDeleteAnAccountThatHasNoHistory() throws Exception {
+        String admin = login("admin@ops.local");
+        String email = "remove-me-" + System.nanoTime() + "@ops.local";
+        String body = mvc.perform(post("/api/users").header("Authorization", admin).contentType(JSON)
+                        .content(json.writeValueAsString(Map.of("fullName", "Temporary Person", "email", email,
+                                "password", "Passw0rd!", "role", "EMPLOYEE"))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = json.readTree(body).get("id").asLong();
+
+        mvc.perform(delete("/api/users/" + id).header("Authorization", admin))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/users").header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.email == '" + email + "')]").isEmpty());
+    }
+
+    @Test
+    void nonAdminsCannotDeleteAccounts() throws Exception {
+        String admin = login("admin@ops.local");
+        String email = "keep-me-" + System.nanoTime() + "@ops.local";
+        String body = mvc.perform(post("/api/users").header("Authorization", admin).contentType(JSON)
+                        .content(json.writeValueAsString(Map.of("fullName", "Keep Me", "email", email,
+                                "password", "Passw0rd!", "role", "EMPLOYEE"))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = json.readTree(body).get("id").asLong();
+
+        mvc.perform(delete("/api/users/" + id).header("Authorization", login("employee@ops.local")))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/users/" + id).header("Authorization", login("manager@ops.local")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void anAccountWithTicketHistoryIsKeptForAudit() throws Exception {
+        String admin = login("admin@ops.local");
+        String email = "has-history-" + System.nanoTime() + "@ops.local";
+        String body = mvc.perform(post("/api/users").header("Authorization", admin).contentType(JSON)
+                        .content(json.writeValueAsString(Map.of("fullName", "History Person", "email", email,
+                                "password", "Passw0rd!", "role", "EMPLOYEE"))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = json.readTree(body).get("id").asLong();
+
+        String employee = login(email);
+        createTicket(employee, "Cannot log in", "My password was reset but I still cannot login");
+
+        mvc.perform(delete("/api/users/" + id).header("Authorization", admin))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
