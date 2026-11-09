@@ -78,6 +78,8 @@ export default function TicketsPage() {
                     <PriorityMark priority={t.priority} />
                     <span className="tag">{t.assigneeName ? `With ${t.assigneeName}` : 'Not assigned yet'}</span>
                     {isStaff && <span className="tag">From {t.requesterName}</span>}
+                    {!isStaff && t.status === 'RESOLVED' && !t.requesterConfirmedAt
+                      && <span className="tag tag-hot">Confirm it’s fixed</span>}
                   </div>
                 </Link>
               </li>
