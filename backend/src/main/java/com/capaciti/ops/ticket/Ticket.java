@@ -59,6 +59,14 @@ public class Ticket {
     @Column(name = "resolved_at")
     private Instant resolvedAt;
 
+    /** Set when the requester confirms their problem is actually solved. */
+    @Column(name = "requester_confirmed_at")
+    private Instant requesterConfirmedAt;
+
+    /** Optional note from the requester when confirming or reopening. */
+    @Column(name = "requester_feedback", columnDefinition = "text")
+    private String requesterFeedback;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -103,5 +111,11 @@ public class Ticket {
 
     public Instant getResolvedAt() { return resolvedAt; }
     public void setResolvedAt(Instant resolvedAt) { this.resolvedAt = resolvedAt; }
+
+    public Instant getRequesterConfirmedAt() { return requesterConfirmedAt; }
+    public void setRequesterConfirmedAt(Instant requesterConfirmedAt) { this.requesterConfirmedAt = requesterConfirmedAt; }
+
+    public String getRequesterFeedback() { return requesterFeedback; }
+    public void setRequesterFeedback(String requesterFeedback) { this.requesterFeedback = requesterFeedback; }
 
 }

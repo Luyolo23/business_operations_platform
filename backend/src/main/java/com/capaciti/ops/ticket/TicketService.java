@@ -15,6 +15,7 @@ import com.capaciti.ops.user.User;
 import com.capaciti.ops.user.UserRepository;
 import com.capaciti.ops.workflow.WorkflowService;
 import java.time.Instant;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -109,9 +110,62 @@ public class TicketService {
         if (status == TicketStatus.RESOLVED || status == TicketStatus.CLOSED) {
             if (t.getResolvedAt() == null) t.setResolvedAt(Instant.now());
             notifications.notify(t.getRequester(), t.getId(), "Ticket #" + t.getId() + " " + status,
-                    "Your ticket \"" + t.getTitle() + "\" is now " + status + ".");
+                    "Your ticket \"" + t.getTitle() + "\" is now " + status
+                            + ". Open it to confirm whether the problem is solved.");
         }
         audit.log("TICKET_STATUS_CHANGED", "Ticket", t.getId(), caller.email(), old + " -> " + status);
+        return TicketDto.from(t);
+    }
+
+    /**
+     * The person who raised the ticket has the final say: confirm the fix (closes the ticket)
+     * or say the problem is still there (reopens it for the team).
+     */
+    @Transactional
+    public TicketDto confirmResolution(Long id, boolean confirmed, String comment, AuthUser caller) {
+        Ticket t = loadVisible(id, caller);
+        if (!t.getRequester().getId().equals(caller.id())) {
+            throw new ForbiddenException("Only the person who raised this request can confirm the resolution");
+        }
+        if (t.getStatus() != TicketStatus.RESOLVED && t.getStatus() != TicketStatus.CLOSED) {
+            throw new BadRequestException("This request has not been marked as resolved yet");
+        }
+
+        String feedback = comment == null ? null : comment.trim();
+        if (feedback != null && feedback.isEmpty()) feedback = null;
+
+        Instant now = Instant.now();
+        t.setRequesterFeedback(feedback);
+        t.setUpdatedAt(now);
+
+        if (confirmed) {
+            t.setStatus(TicketStatus.CLOSED);
+            t.setRequesterConfirmedAt(now);
+            if (t.getResolvedAt() == null) t.setResolvedAt(now);
+            if (t.getAssignee() != null) {
+                notifications.notify(t.getAssignee(), t.getId(),
+                        "Requester confirmed #" + t.getId() + " is resolved",
+                        t.getRequester().getFullName() + " confirmed that \"" + t.getTitle()
+                                + "\" is solved. The ticket is now closed.");
+            }
+            audit.log("TICKET_RESOLUTION_CONFIRMED", "Ticket", t.getId(), caller.email(),
+                    feedback == null ? null : "feedback=" + feedback);
+        } else {
+            t.setStatus(TicketStatus.IN_PROGRESS);
+            t.setResolvedAt(null);
+            t.setRequesterConfirmedAt(null);
+            String message = t.getRequester().getFullName() + " says \"" + t.getTitle()
+                    + "\" is still not resolved." + (feedback == null ? "" : " They added: " + feedback);
+            if (t.getAssignee() != null) {
+                notifications.notify(t.getAssignee(), t.getId(), "Requester reopened #" + t.getId(), message);
+            } else {
+                users.findByRoleInAndActiveTrue(List.of(Role.MANAGER, Role.ADMIN))
+                        .forEach(manager -> notifications.notify(manager, t.getId(),
+                                "Requester reopened #" + t.getId(), message));
+            }
+            audit.log("TICKET_REOPENED_BY_REQUESTER", "Ticket", t.getId(), caller.email(),
+                    feedback == null ? null : "feedback=" + feedback);
+        }
         return TicketDto.from(t);
     }
 
