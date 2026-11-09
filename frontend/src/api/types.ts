@@ -13,7 +13,9 @@ export const PRIORITIES: Priority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 export const STATUSES: TicketStatus[] = ['NEW', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_APPROVAL', 'RESOLVED', 'CLOSED'];
 export const TONES: Tone[] = ['FORMAL', 'FRIENDLY', 'URGENT'];
 
-export interface User { id: number; email: string; fullName: string; role: Role; department: Category | null }
+export interface User {
+  id: number; email: string; fullName: string; role: Role; department: Category | null; active: boolean;
+}
 export interface AuthResponse { token: string; expiresInSeconds: number; user: User }
 
 export interface PageResponse<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number }

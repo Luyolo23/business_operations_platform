@@ -64,6 +64,7 @@ public class AuthService {
     }
 
     public static UserDto toDto(User u) {
-        return new UserDto(u.getId(), u.getEmail(), u.getFullName(), u.getRole(), u.getDepartment());
+        return new UserDto(u.getId(), u.getEmail(), u.getFullName(), u.getRole(), u.getDepartment(),
+                u.isActive());
     }
 }

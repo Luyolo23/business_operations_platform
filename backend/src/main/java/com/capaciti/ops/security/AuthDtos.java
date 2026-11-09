@@ -15,7 +15,8 @@ public final class AuthDtos {
 
     public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
 
-    public record UserDto(Long id, String email, String fullName, Role role, Category department) {}
+    public record UserDto(Long id, String email, String fullName, Role role, Category department,
+                          boolean active) {}
 
     public record AuthResponse(String token, long expiresInSeconds, UserDto user) {}
 }

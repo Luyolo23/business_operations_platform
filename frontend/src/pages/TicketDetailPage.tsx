@@ -17,6 +17,8 @@ export default function TicketDetailPage() {
   const responses = useAsync(() => ticketApi.responses(id), [id]);
   const staff = useAsync<User[]>(() => (isManager ? userApi.staff() : Promise.resolve([])), [isManager]);
   const [tone, setTone] = useState<Tone>('FORMAL');
+  const [replyTone, setReplyTone] = useState<Tone>('FORMAL');
+  const [replyBody, setReplyBody] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cat, setCat] = useState<Category | ''>('');
@@ -63,6 +65,37 @@ export default function TicketDetailPage() {
             <div>
               <p className="prose">{t.description}</p>
 
+              {isStaff && (
+                <div style={{ marginTop: 40 }}>
+                  <Panel title="Write a reply yourself">
+                    <p className="muted" style={{ marginBottom: 16 }}>
+                      Prefer your own words? Write the reply here. It still goes through the same risk
+                      check: a clean reply is sent straight away, while a risky one is held for a manager.
+                    </p>
+                    <div className="field">
+                      <label htmlFor="reply-tone">Tone</label>
+                      <select id="reply-tone" value={replyTone}
+                        onChange={(e) => setReplyTone(e.target.value as Tone)}>
+                        {TONES.map((x) => <option key={x} value={x}>{TONE_LABEL[x]}</option>)}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="reply-body">Your reply</label>
+                      <textarea id="reply-body" value={replyBody} maxLength={10000}
+                        placeholder="Write what the requester needs to hear…"
+                        onChange={(e) => setReplyBody(e.target.value)} />
+                    </div>
+                    <button className="btn" disabled={busy || replyBody.trim().length === 0}
+                      onClick={() => run(async () => {
+                        await ticketApi.reply(id, replyTone, replyBody);
+                        setReplyBody('');
+                      }, 'Reply submitted — it is sent unless the risk check holds it for approval.')}>
+                      Send written reply
+                    </button>
+                  </Panel>
+                </div>
+              )}
+
               <div style={{ marginTop: 40 }}>
                 <Panel title="Replies" aside={isStaff && (
                   <div className="row">
@@ -82,6 +115,7 @@ export default function TicketDetailPage() {
                         <RiskMark level={r.riskLevel} />
                         <span className="tag">{r.status === 'APPROVED' ? 'Sent' : r.status === 'REJECTED' ? 'Rejected' : 'Waiting for approval'}</span>
                         <span className="tag">{TONE_LABEL[r.tone]} tone</span>
+                        {r.generatedBy.startsWith('manual') && <span className="tag">Written by staff</span>}
                         <span className="tag muted">{fmtDate(r.createdAt)}</span>
                       </div>
                       <div className="letter" style={{ '--edge': RISK_COLOR[r.riskLevel] } as CSSProperties}>{r.body}</div>
@@ -122,6 +156,14 @@ export default function TicketDetailPage() {
                   <div className="field"><label htmlFor="st">Status</label>
                     <select id="st" value={t.status} disabled={busy} onChange={(e) => run(() => ticketApi.setStatus(id, e.target.value as TicketStatus), 'Status updated.')}>
                       {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}</select></div>
+                  {t.status !== 'RESOLVED' && t.status !== 'CLOSED' && (
+                    t.firstResponseAt
+                      ? <button className="btn btn-line" disabled={busy}
+                          onClick={() => run(() => ticketApi.setStatus(id, 'RESOLVED'), 'Ticket marked resolved.')}>
+                          Mark resolved
+                        </button>
+                      : <p className="muted">A reply must reach the requester before this ticket can be resolved or closed.</p>
+                  )}
                   {isManager && (
                     <div className="field"><label htmlFor="as">Assign to</label>
                       <select id="as" value={t.assigneeId ?? ''} disabled={busy}

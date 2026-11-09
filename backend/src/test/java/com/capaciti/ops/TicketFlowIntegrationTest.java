@@ -3,6 +3,7 @@ package com.capaciti.ops;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -127,6 +128,61 @@ class TicketFlowIntegrationTest {
 
         mvc.perform(get("/api/tickets/" + id).header("Authorization", manager))
                 .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+    }
+
+    private JsonNode writeReply(String auth, long ticketId, String body) throws Exception {
+        String response = mvc.perform(post("/api/tickets/" + ticketId + "/responses").header("Authorization", auth)
+                        .contentType(JSON).content(json.writeValueAsString(Map.of("tone", "FORMAL", "body", body))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return json.readTree(response);
+    }
+
+    @Test
+    void agentCanWriteAManualReply() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "Laptop request",
+                "I need a new laptop for the design team").get("id").asLong();
+        String agent = login("agent.it@ops.local");
+
+        JsonNode reply = writeReply(agent, id, "We have ordered a laptop for you; it arrives on Monday.");
+
+        assertEquals("APPROVED", reply.get("status").asText());
+        assertEquals("manual", reply.get("generatedBy").asText());
+        assertEquals("We have ordered a laptop for you; it arrives on Monday.", reply.get("body").asText());
+
+        mvc.perform(get("/api/tickets/" + id).header("Authorization", agent))
+                .andExpect(jsonPath("$.firstResponseAt").value(notNullValue()))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+    }
+
+    @Test
+    void manualRepliesAreStillRiskScreened() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "Refund question",
+                "Can you tell me about my refund").get("id").asLong();
+
+        JsonNode reply = writeReply(login("agent.finance@ops.local"), id,
+                "We guarantee you will get your money back.");
+
+        assertEquals("PENDING_APPROVAL", reply.get("status").asText());
+        assertEquals("MEDIUM", reply.get("riskLevel").asText());
+    }
+
+    @Test
+    void ticketCannotBeResolvedBeforeAReplyIsSent() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "VPN not working",
+                "I cannot connect to the VPN from my laptop").get("id").asLong();
+        String agent = login("agent.it@ops.local");
+
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isBadRequest());
+
+        writeReply(agent, id, "Please restart the VPN client and try again.");
+
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESOLVED"))
+                .andExpect(jsonPath("$.resolvedAt").value(notNullValue()));
     }
 
     @Test

@@ -12,12 +12,16 @@ import ForecastPage from './pages/ForecastPage';
 import ReportsPage from './pages/ReportsPage';
 import ApprovalsPage from './pages/ApprovalsPage';
 import CompliancePage from './pages/CompliancePage';
+import EmployeesPage from './pages/EmployeesPage';
 
-function RequireAuth({ children, managerOnly }: { children: ReactElement; managerOnly?: boolean }) {
-  const { user, loading, isManager } = useAuth();
+function RequireAuth({ children, managerOnly, adminOnly }: {
+  children: ReactElement; managerOnly?: boolean; adminOnly?: boolean;
+}) {
+  const { user, loading, isManager, isAdmin } = useAuth();
   if (loading) return <p className="muted pad">Loading…</p>;
   if (!user) return <Navigate to="/login" replace />;
   if (managerOnly && !isManager) return <Navigate to="/tickets" replace />;
+  if (adminOnly && !isAdmin) return <Navigate to="/tickets" replace />;
   return children;
 }
 
@@ -36,6 +40,7 @@ export default function App() {
         <Route path="/reports" element={<RequireAuth managerOnly><ReportsPage /></RequireAuth>} />
         <Route path="/approvals" element={<RequireAuth managerOnly><ApprovalsPage /></RequireAuth>} />
         <Route path="/compliance" element={<RequireAuth managerOnly><CompliancePage /></RequireAuth>} />
+        <Route path="/employees" element={<RequireAuth adminOnly><EmployeesPage /></RequireAuth>} />
       </Route>
       <Route path="*" element={<Navigate to="/tickets" replace />} />
     </Routes>

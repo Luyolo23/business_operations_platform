@@ -1,4 +1,4 @@
-import type { Category, Priority, RiskLevel, TicketStatus } from './api/types';
+import type { Category, Priority, RiskLevel, Role, TicketStatus } from './api/types';
 
 // One colour per department: colour tells you which team owns a request.
 export const DEPT_HEX: Record<Category, string> = { HR: '#8E3B7A', IT: '#2D52D6', FINANCE: '#2F7D4F', OPERATIONS: '#C9860A' };
@@ -20,6 +20,10 @@ export const STATUS_COLOR: Record<TicketStatus, string> = {
   AWAITING_APPROVAL: 'var(--ops)', RESOLVED: 'var(--fin)', CLOSED: 'var(--ink-3)',
 };
 export const PRIORITY_LABEL: Record<Priority, string> = { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', URGENT: 'Urgent' };
+export const ROLE_LABEL: Record<Role, string> = {
+  EMPLOYEE: 'Employee', AGENT: 'Agent', MANAGER: 'Manager', ADMIN: 'Admin',
+};
+export const ROLES: Role[] = ['EMPLOYEE', 'AGENT', 'MANAGER', 'ADMIN'];
 export const RISK_LABEL: Record<RiskLevel, string> = { NONE: 'No concerns', LOW: 'Minor concerns', MEDIUM: 'Needs a look', HIGH: 'Held back' };
 export const RISK_COLOR: Record<RiskLevel, string> = {
   NONE: 'var(--fin)', LOW: 'var(--fin)', MEDIUM: 'var(--ops)', HIGH: 'var(--urgent)',

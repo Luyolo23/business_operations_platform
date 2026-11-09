@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { notificationApi } from '../api/endpoints';
 
 export default function Layout() {
-  const { user, logout, isManager } = useAuth();
+  const { user, logout, isManager, isAdmin } = useAuth();
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
@@ -38,6 +38,7 @@ export default function Layout() {
               <NavLink to="/compliance">Compliance</NavLink>
             </>
           )}
+          {isAdmin && <NavLink to="/employees">People</NavLink>}
         </nav>
         <div className="who">
           <span className="avatar" aria-hidden="true">{initials}</span>

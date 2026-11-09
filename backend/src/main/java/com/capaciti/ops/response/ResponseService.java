@@ -2,6 +2,7 @@ package com.capaciti.ops.response;
 
 import com.capaciti.ops.ai.GeneratedResponse;
 import com.capaciti.ops.ai.ResponseGenerator;
+import com.capaciti.ops.common.Exceptions.BadRequestException;
 import com.capaciti.ops.common.Exceptions.NotFoundException;
 import com.capaciti.ops.compliance.AuditService;
 import com.capaciti.ops.compliance.ComplianceService;
@@ -57,11 +58,9 @@ public class ResponseService {
     }
 
     @Transactional
-    public ResponseDto generate(Long ticketId, Tone tone, AuthUser caller) {
+    public ResponseDto generate(Long ticketId, Tone tone, String body, AuthUser caller) {
         Ticket ticket = ticketService.loadVisible(ticketId, caller);
-        ResponseTemplate template = templates.findByCategoryAndTone(ticket.getCategory(), tone)
-                .orElseThrow(() -> new NotFoundException("No template for " + ticket.getCategory() + "/" + tone));
-        GeneratedResponse g = generator.generate(ticket, tone, template.getBody());
+        GeneratedResponse g = draft(ticket, tone, body, caller);
 
         TicketResponse r = new TicketResponse();
         r.setTicket(ticket);
@@ -97,6 +96,26 @@ public class ResponseService {
             audit.log("RESPONSE_AUTO_APPROVED", "TicketResponse", r.getId(), caller.email(), "risk=" + risk.getLevel());
         }
         return toDto(r, risk, approvalId);
+    }
+
+    /**
+     * Manual replies come in as a plain {@code body}; everything else is drafted by the
+     * configured generator. Both paths are risk-screened identically in {@link #generate}.
+     */
+    private GeneratedResponse draft(Ticket ticket, Tone tone, String body, AuthUser caller) {
+        if (body != null) {
+            String written = body.trim();
+            if (written.isEmpty()) {
+                throw new BadRequestException("The reply body cannot be empty");
+            }
+            if (written.length() > 10000) {
+                throw new BadRequestException("The reply body must be 10000 characters or fewer");
+            }
+            return new GeneratedResponse(written, "manual", "Written manually by " + caller.email() + ".");
+        }
+        ResponseTemplate template = templates.findByCategoryAndTone(ticket.getCategory(), tone)
+                .orElseThrow(() -> new NotFoundException("No template for " + ticket.getCategory() + "/" + tone));
+        return generator.generate(ticket, tone, template.getBody());
     }
 
     @Transactional(readOnly = true)

@@ -2,6 +2,7 @@ package com.capaciti.ops.ticket;
 
 import com.capaciti.ops.ai.ClassificationResult;
 import com.capaciti.ops.ai.TicketClassifier;
+import com.capaciti.ops.common.Exceptions.BadRequestException;
 import com.capaciti.ops.common.Exceptions.ForbiddenException;
 import com.capaciti.ops.common.Exceptions.NotFoundException;
 import com.capaciti.ops.common.PageResponse;
@@ -97,6 +98,12 @@ public class TicketService {
     public TicketDto updateStatus(Long id, TicketStatus status, AuthUser caller) {
         Ticket t = loadVisible(id, caller);
         TicketStatus old = t.getStatus();
+        // A ticket can only be resolved/closed after at least one reply has reached the requester.
+        // Without this the requester could be left with no answer and no way to see why it closed.
+        if ((status == TicketStatus.RESOLVED || status == TicketStatus.CLOSED) && t.getFirstResponseAt() == null) {
+            throw new BadRequestException(
+                    "Send a reply to the requester before resolving or closing this ticket");
+        }
         t.setStatus(status);
         t.setUpdatedAt(Instant.now());
         if (status == TicketStatus.RESOLVED || status == TicketStatus.CLOSED) {

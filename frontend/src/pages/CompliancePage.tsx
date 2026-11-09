@@ -19,6 +19,17 @@ export default function CompliancePage() {
         {report.data && <p className="lede">{report.data.observations.join(' ')}</p>}
       </div>
       <Status loading={report.loading} error={report.error} />
+
+      <Panel title="What this page measures">
+        <ul className="list">
+          <li><strong>Reply risk.</strong> Every reply — whether written by the assistant or typed by a person — is screened. Medium or high risk replies are held for a manager before the requester sees them.</li>
+          <li><strong>Approvals.</strong> How many replies are waiting for a manager, and how many were approved or rejected.</li>
+          <li><strong>Routing quality.</strong> How often staff had to correct the assistant’s choice of team or priority.</li>
+          <li><strong>First-response consistency.</strong> Average hours until the first reply, broken down by team.</li>
+          <li><strong>Flagged replies and audit trail.</strong> The exact replies that triggered a rule, and a record of who changed what.</li>
+        </ul>
+      </Panel>
+
       {report.data && o && (
         <>
           <Stats items={[

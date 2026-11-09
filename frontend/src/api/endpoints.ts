@@ -19,6 +19,9 @@ export const ticketApi = {
   assign: (id: number, userId: number) => api<T.Ticket>(`/api/tickets/${id}/assignee`, 'PATCH', { userId }),
   responses: (id: number) => api<T.TicketResponse[]>(`/api/tickets/${id}/responses`),
   generate: (id: number, tone: T.Tone) => api<T.TicketResponse>(`/api/tickets/${id}/responses`, 'POST', { tone }),
+  // A non-empty body sends a manually written reply; the backend still risk-screens it.
+  reply: (id: number, tone: T.Tone, body: string) =>
+    api<T.TicketResponse>(`/api/tickets/${id}/responses`, 'POST', { tone, body }),
 };
 
 export const approvalApi = {
@@ -49,4 +52,11 @@ export const complianceApi = {
   audit: (page = 0, size = 20) => api<T.PageResponse<T.AuditLog>>(`/api/compliance/audit${qs({ page, size })}`),
 };
 
-export const userApi = { staff: () => api<T.User[]>('/api/users/staff') };
+export const userApi = {
+  staff: () => api<T.User[]>('/api/users/staff'),
+  list: () => api<T.User[]>('/api/users'),
+  create: (input: { fullName: string; email: string; password: string; role: T.Role; department: T.Category | null }) =>
+    api<T.User>('/api/users', 'POST', input),
+  deactivate: (id: number) => api<T.User>(`/api/users/${id}/deactivate`, 'PATCH'),
+  activate: (id: number) => api<T.User>(`/api/users/${id}/activate`, 'PATCH'),
+};

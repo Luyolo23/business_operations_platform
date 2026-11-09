@@ -11,6 +11,7 @@ interface AuthState {
   logout: () => void;
   isStaff: boolean;
   isManager: boolean;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register: async (n, e, p) => accept(await authApi.register(n, e, p)),
     isStaff: !!user && user.role !== 'EMPLOYEE',
     isManager: !!user && (user.role === 'MANAGER' || user.role === 'ADMIN'),
+    isAdmin: !!user && user.role === 'ADMIN',
   }), [user, loading, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

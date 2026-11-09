@@ -72,6 +72,6 @@ public class TicketController {
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseDto generateResponse(@PathVariable Long id, @Valid @RequestBody GenerateResponseRequest req,
                                         @AuthenticationPrincipal AuthUser caller) {
-        return responses.generate(id, req.tone(), caller);
+        return responses.generate(id, req.tone(), req.body(), caller);
     }
 }
