@@ -8,4 +8,5 @@ public interface ApprovalRepository extends JpaRepository<Approval, Long> {
     List<Approval> findByStatusOrderByCreatedAtAsc(ApprovalStatus status);
     List<Approval> findByResponseIdIn(Collection<Long> responseIds);
     long countByStatus(ApprovalStatus status);
+    long countByDecidedBy_Id(Long userId);
 }
