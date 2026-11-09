@@ -5,4 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TicketResponseRepository extends JpaRepository<TicketResponse, Long> {
     List<TicketResponse> findByTicketIdOrderByCreatedAtDesc(Long ticketId);
+    long countByCreatedBy_Id(Long userId);
 }
