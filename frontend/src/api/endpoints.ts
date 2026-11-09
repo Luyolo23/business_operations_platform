@@ -22,6 +22,9 @@ export const ticketApi = {
   // A non-empty body sends a manually written reply; the backend still risk-screens it.
   reply: (id: number, tone: T.Tone, body: string) =>
     api<T.TicketResponse>(`/api/tickets/${id}/responses`, 'POST', { tone, body }),
+  // Requester confirms the fix worked (confirmed=true) or reopens the ticket (confirmed=false).
+  confirmResolution: (id: number, confirmed: boolean, comment: string) =>
+    api<T.Ticket>(`/api/tickets/${id}/resolution`, 'POST', { confirmed, comment }),
 };
 
 export const approvalApi = {
@@ -59,4 +62,5 @@ export const userApi = {
     api<T.User>('/api/users', 'POST', input),
   deactivate: (id: number) => api<T.User>(`/api/users/${id}/deactivate`, 'PATCH'),
   activate: (id: number) => api<T.User>(`/api/users/${id}/activate`, 'PATCH'),
+  remove: (id: number) => api<void>(`/api/users/${id}`, 'DELETE'),
 };

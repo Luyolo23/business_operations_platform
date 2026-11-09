@@ -34,7 +34,10 @@ async function send(path: string, method: string, body?: unknown): Promise<Respo
       message = err.message ?? message;
       fieldErrors = err.fieldErrors ?? undefined;
     } catch { /* empty body */ }
-    if (res.status === 401 && token) onUnauthorized?.();
+    if (res.status === 401 && token) {
+      onUnauthorized?.();
+      message = 'Your session has expired. Please sign in again.';
+    }
     throw new ApiError(res.status, message || `HTTP ${res.status}`, fieldErrors);
   }
   return res;

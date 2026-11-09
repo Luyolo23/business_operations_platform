@@ -25,6 +25,7 @@ export interface Ticket {
   requesterId: number; requesterName: string; requesterEmail: string; assigneeId: number | null;
   assigneeName: string | null; classificationConfidence: number | null; classificationSource: string | null;
   escalated: boolean; createdAt: string; updatedAt: string; firstResponseAt: string | null; resolvedAt: string | null;
+  requesterConfirmedAt: string | null; requesterFeedback: string | null;
 }
 
 export interface TicketResponse {
