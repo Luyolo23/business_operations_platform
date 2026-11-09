@@ -12,13 +12,14 @@ Employees raise internal requests ("tickets"). The platform automatically classi
 1. [Quick Start – Backend (dev)](#quick-start--backend-dev)
 2. [Quick Start – Frontend (dev)](#quick-start--frontend-dev)
 3. [Full-Stack Docker Compose](#full-stack-docker-compose)
-4. [Demo Accounts](#demo-accounts)
-5. [Try it with curl](#try-it-with-curl)
-6. [How to Store API Keys Safely](#how-to-store-api-keys-safely)
-7. [Feature Modules](#feature-modules)
-8. [Repository Layout](#repository-layout)
-9. [Running Tests](#running-tests)
-10. [Documentation](#documentation)
+4. [View the Database in pgAdmin](#view-the-database-in-pgadmin)
+5. [Demo Accounts](#demo-accounts)
+6. [Try it with curl](#try-it-with-curl)
+7. [How to Store API Keys Safely](#how-to-store-api-keys-safely)
+8. [Feature Modules](#feature-modules)
+9. [Repository Layout](#repository-layout)
+10. [Running Tests](#running-tests)
+11. [Documentation](#documentation)
 
 ---
 
@@ -90,6 +91,40 @@ make full
 |-----|-------------|
 | http://localhost:8081 | React frontend (via Nginx) |
 | http://localhost:8080 | Backend API / Swagger UI |
+
+---
+
+## View the Database in pgAdmin
+
+pgAdmin connects to PostgreSQL over TCP, so use the port that is published to your host.
+
+### Dev database (`docker compose up -d`)
+
+| pgAdmin field | Value |
+|---|---|
+| Host name/address | `localhost` (or `127.0.0.1`) |
+| Port | `5433` |
+| Maintenance database | `opsdb` |
+| Username | `ops` |
+| Password | `ops` |
+| SSL mode | `Disable` |
+
+### Full-stack database (`docker compose -f docker-compose.full.yml up`)
+
+The full stack publishes Postgres on host port **`5434`** (added for pgAdmin; the containers still talk over 5432 internally).
+
+| pgAdmin field | Value |
+|---|---|
+| Host name/address | `localhost` (or `127.0.0.1`) |
+| Port | `5434` |
+| Maintenance database | `opsdb` |
+| Username | `ops` |
+| Password | value of `DB_PASSWORD` in your `.env` file |
+| SSL mode | `Disable` |
+
+In pgAdmin: **Object → Register → Server…**, fill in the table above, then click **Save**. Open **Databases → opsdb → Schemas → public → Tables** to browse `users`, `tickets`, `ticket_responses`, `approvals`, and the rest.
+
+> If the connection is refused, check that the container is running (`docker ps`) and that the port is not already used by another Postgres instance.
 
 ---
 
@@ -238,7 +273,7 @@ Set `AI_PROVIDER=mock` (the default) to use the built-in keyword classifier and 
 ## Running Tests
 
 ```bash
-# Unit tests only (no Docker required)
+# Unit tests only (no Docker required)+++
 cd backend && mvn test -DexcludedGroups=integration
 
 # Integration tests (Docker required for Testcontainers)
