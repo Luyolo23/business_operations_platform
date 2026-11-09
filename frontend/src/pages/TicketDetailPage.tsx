@@ -12,13 +12,14 @@ const TONE_LABEL: Record<Tone, string> = { FORMAL: 'Formal', FRIENDLY: 'Friendly
 
 export default function TicketDetailPage() {
   const id = Number(useParams().id);
-  const { isStaff, isManager } = useAuth();
+  const { user, isStaff, isManager } = useAuth();
   const ticket = useAsync(() => ticketApi.get(id), [id]);
   const responses = useAsync(() => ticketApi.responses(id), [id]);
   const staff = useAsync<User[]>(() => (isManager ? userApi.staff() : Promise.resolve([])), [isManager]);
   const [tone, setTone] = useState<Tone>('FORMAL');
   const [replyTone, setReplyTone] = useState<Tone>('FORMAL');
   const [replyBody, setReplyBody] = useState('');
+  const [resolutionNote, setResolutionNote] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cat, setCat] = useState<Category | ''>('');
@@ -40,11 +41,13 @@ export default function TicketDetailPage() {
   }
 
   const t = ticket.data;
+  const isRequester = !!user && !!t && t.requesterId === user.id;
   const steps = t ? [
     { name: 'Received', when: t.createdAt, done: true },
     { name: t.assigneeName ? `Assigned to ${t.assigneeName}` : 'Assigned', when: null as string | null, done: t.assigneeId != null },
     { name: 'First reply sent', when: t.firstResponseAt, done: t.firstResponseAt != null },
     { name: 'Resolved', when: t.resolvedAt, done: t.resolvedAt != null },
+    { name: 'Requester confirmed it’s solved', when: t.requesterConfirmedAt, done: t.requesterConfirmedAt != null },
   ] : [];
 
   return (
@@ -60,6 +63,41 @@ export default function TicketDetailPage() {
             </p>
           </div>
           {msg && <Notice tone="info">{msg}</Notice>}
+
+          {isRequester && !t.requesterConfirmedAt
+            && (t.status === 'RESOLVED' || t.status === 'CLOSED') && (
+            <Panel title="Did this solve your problem?">
+              <p className="muted" style={{ marginBottom: 16 }}>
+                The team marked this request as resolved. You have the final say — confirm that the
+                problem is fixed, or send it back to the team if it is not.
+              </p>
+              <div className="field">
+                <label htmlFor="resolution-note">Anything to add? <span className="hint">(optional)</span></label>
+                <textarea id="resolution-note" value={resolutionNote} maxLength={2000}
+                  placeholder="For example: working now, thanks. Or: it broke again this morning."
+                  onChange={(e) => setResolutionNote(e.target.value)} />
+              </div>
+              <div className="row">
+                <button className="btn" disabled={busy}
+                  onClick={() => run(() => ticketApi.confirmResolution(id, true, resolutionNote),
+                    'Thanks — your confirmation closed the request.')}>
+                  Yes, it’s solved
+                </button>
+                <button className="btn btn-line btn-danger" disabled={busy}
+                  onClick={() => run(() => ticketApi.confirmResolution(id, false, resolutionNote),
+                    'Reopened — the team has been notified.')}>
+                  No, still a problem
+                </button>
+              </div>
+            </Panel>
+          )}
+
+          {t.requesterConfirmedAt && (
+            <Notice tone="good">
+              The requester confirmed this problem was solved.
+              {t.requesterFeedback ? ` They said: “${t.requesterFeedback}”` : ''}
+            </Notice>
+          )}
 
           <div className="split">
             <div>
@@ -147,6 +185,8 @@ export default function TicketDetailPage() {
                   <div><dt>Raised by</dt><dd>{t.requesterName}</dd></div>
                   <div><dt>Handled by</dt><dd>{t.assigneeName ?? 'Not assigned yet'}</dd></div>
                   <div><dt>Routing</dt><dd>{t.classificationSource === 'MANUAL' ? 'Set by a person' : `Chosen by the assistant (${t.classificationConfidence != null ? Math.round(t.classificationConfidence * 100) : '—'}% sure)`}</dd></div>
+                  <div><dt>Requester confirmed</dt><dd>{t.requesterConfirmedAt ? `Yes, ${fmtDate(t.requesterConfirmedAt)}` : 'Not yet'}</dd></div>
+                  {t.requesterFeedback && <div><dt>Requester note</dt><dd>{t.requesterFeedback}</dd></div>}
                 </dl>
               </section>
 

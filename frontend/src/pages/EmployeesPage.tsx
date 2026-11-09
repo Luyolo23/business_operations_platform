@@ -43,6 +43,23 @@ export default function EmployeesPage() {
     }
   }
 
+  async function remove(u: User) {
+    if (!window.confirm(`Permanently delete ${u.fullName}? This cannot be undone. Accounts with ticket history must be switched off instead.`)) {
+      return;
+    }
+    setActingOn(u.id);
+    setResult(null);
+    try {
+      await userApi.remove(u.id);
+      setResult({ tone: 'good', text: `${u.fullName} was permanently deleted.` });
+      users.reload();
+    } catch (err) {
+      setResult({ tone: 'warn', text: err instanceof Error ? err.message : 'That account could not be deleted.' });
+    } finally {
+      setActingOn(null);
+    }
+  }
+
   async function toggle(u: User) {
     setActingOn(u.id);
     setResult(null);
@@ -65,7 +82,8 @@ export default function EmployeesPage() {
       <div className="hero">
         <h1>People</h1>
         <p className="lede">
-          Add the agents, managers and admins who handle requests, and switch access off when someone leaves.
+          Add the agents, managers and admins who handle requests, switch access off when someone leaves,
+          or permanently remove an account that has never been used.
         </p>
       </div>
 
@@ -135,10 +153,16 @@ export default function EmployeesPage() {
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button className="btn btn-line" disabled={actingOn === u.id}
-                        onClick={() => toggle(u)}>
-                        {actingOn === u.id ? 'Working…' : u.active ? 'Switch off' : 'Switch on'}
-                      </button>
+                      <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+                        <button className="btn btn-line" disabled={actingOn === u.id}
+                          onClick={() => toggle(u)}>
+                          {actingOn === u.id ? 'Working…' : u.active ? 'Switch off' : 'Switch on'}
+                        </button>
+                        <button className="btn btn-line btn-danger" disabled={actingOn === u.id}
+                          onClick={() => remove(u)}>
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
