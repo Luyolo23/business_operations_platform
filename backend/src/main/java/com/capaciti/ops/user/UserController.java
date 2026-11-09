@@ -4,10 +4,14 @@ import com.capaciti.ops.common.Exceptions.BadRequestException;
 import com.capaciti.ops.common.Exceptions.ForbiddenException;
 import com.capaciti.ops.common.Exceptions.NotFoundException;
 import com.capaciti.ops.compliance.AuditService;
+import com.capaciti.ops.notification.NotificationRepository;
+import com.capaciti.ops.response.ApprovalRepository;
+import com.capaciti.ops.response.TicketResponseRepository;
 import com.capaciti.ops.security.AuthDtos.UserDto;
 import com.capaciti.ops.security.AuthService;
 import com.capaciti.ops.security.AuthUser;
 import com.capaciti.ops.ticket.Category;
+import com.capaciti.ops.ticket.TicketRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -28,17 +32,28 @@ import org.springframework.web.bind.annotation.*;
  * POST /api/users                    – ADMIN only: create an EMPLOYEE/AGENT/MANAGER/ADMIN account.
  * PATCH /api/users/{id}/deactivate   – ADMIN only: soft-deactivate an account.
  * PATCH /api/users/{id}/activate     – ADMIN only: reactivate an account.
+ * DELETE /api/users/{id}             – ADMIN only: permanently remove an account with no history.
  */
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
 
     private final UserRepository users;
+    private final TicketRepository tickets;
+    private final TicketResponseRepository responses;
+    private final ApprovalRepository approvals;
+    private final NotificationRepository notifications;
     private final PasswordEncoder encoder;
     private final AuditService audit;
 
-    public UserController(UserRepository users, PasswordEncoder encoder, AuditService audit) {
+    public UserController(UserRepository users, TicketRepository tickets, TicketResponseRepository responses,
+                          ApprovalRepository approvals, NotificationRepository notifications,
+                          PasswordEncoder encoder, AuditService audit) {
         this.users = users;
+        this.tickets = tickets;
+        this.responses = responses;
+        this.approvals = approvals;
+        this.notifications = notifications;
         this.encoder = encoder;
         this.audit = audit;
     }
@@ -120,6 +135,39 @@ public class UserController {
             audit.log("USER_ACTIVATED", "User", u.getId(), caller.email(), "email=" + u.getEmail());
         }
         return AuthService.toDto(u);
+    }
+
+    /**
+     * ADMIN permanently removes an account. Accounts that have raised tickets, handled tickets,
+     * written replies or made approval decisions are kept for history — switch those off instead.
+     */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
+    public void delete(@PathVariable Long id, @AuthenticationPrincipal AuthUser caller) {
+        requireAdmin(caller);
+        User u = find(id);
+        if (u.getId().equals(caller.id())) {
+            throw new BadRequestException("You cannot delete your own account");
+        }
+        if (u.getRole() == Role.ADMIN && users.countByRole(Role.ADMIN) <= 1) {
+            throw new BadRequestException("Cannot delete the last admin account");
+        }
+
+        long history = tickets.countByRequester_Id(id)
+                + tickets.countByAssignee_Id(id)
+                + responses.countByCreatedBy_Id(id)
+                + approvals.countByDecidedBy_Id(id);
+        if (history > 0) {
+            throw new BadRequestException(
+                    "This person has ticket history, so their account cannot be deleted. "
+                            + "Switch off their access instead — that keeps the history intact.");
+        }
+
+        // Notifications are personal and safe to remove with the account.
+        notifications.deleteByUser_Id(id);
+        users.delete(u);
+        audit.log("USER_DELETED", "User", id, caller.email(), "email=" + u.getEmail());
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
