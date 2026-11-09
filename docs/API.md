@@ -26,6 +26,7 @@ Full interactive docs: **http://localhost:8080/swagger-ui.html**
 | `PATCH`| `/api/tickets/{id}/status` | AGENT+ | Update status. Body: `{status}`. `RESOLVED`/`CLOSED` are rejected until a reply has been sent. |
 | `PATCH`| `/api/tickets/{id}/classification` | AGENT+ | Re-classify. Body: `{category, priority}` |
 | `PATCH`| `/api/tickets/{id}/assignee` | MANAGER+ | Reassign. Body: `{userId}` |
+| `POST` | `/api/tickets/{id}/resolution` | Requester | Confirm or reject the fix. Body: `{confirmed, comment?}` |
 | `GET`  | `/api/tickets/{id}/responses` | Any | List all drafted responses for a ticket |
 | `POST` | `/api/tickets/{id}/responses` | AGENT+ | Draft a reply. Body: `{tone, body?}`. Omit `body` for an AI/template draft; send `body` for a manually written reply. Both are risk-screened. |
 
@@ -44,6 +45,15 @@ In both cases the risk level decides what happens next:
 | `MEDIUM` / `HIGH` | Held as `PENDING_APPROVAL`, an `Approval` is created, ticket moves to `AWAITING_APPROVAL`, and managers are notified. |
 
 A ticket may only move to `RESOLVED` or `CLOSED` after `firstResponseAt` is set (i.e. at least one reply has reached the requester). Otherwise the API returns `400`. Any AGENT, MANAGER or ADMIN who can see the ticket may resolve it; employees cannot change status.
+
+### Requester confirmation
+
+The requester has the final say on a `RESOLVED` ticket:
+
+- `POST /api/tickets/{id}/resolution` with `{ "confirmed": true, "comment": "Working now" }` — closes the ticket, stamps `requesterConfirmedAt`, and notifies the assignee.
+- `POST /api/tickets/{id}/resolution` with `{ "confirmed": false, "comment": "Still broken" }` — moves the ticket back to `IN_PROGRESS`, clears `resolvedAt`, stores the note in `requesterFeedback`, and notifies the assignee (or managers if nobody is assigned).
+
+Only the employee who raised the ticket may call this endpoint. `comment` is optional and limited to 2000 characters.
 
 ---
 
@@ -109,8 +119,11 @@ A ticket may only move to `RESOLVED` or `CLOSED` after `firstResponseAt` is set 
 | `POST` | `/api/users` | ADMIN | Create an account. Body: `{fullName, email, password, role, department}` |
 | `PATCH`| `/api/users/{id}/deactivate` | ADMIN | Soft-deactivate a user account (blocks sign-in) |
 | `PATCH`| `/api/users/{id}/activate` | ADMIN | Reactivate a deactivated account |
+| `DELETE`| `/api/users/{id}` | ADMIN | Permanently delete an account that has no ticket history |
 
 User objects include `active`. Only `AGENT`s may have a `department`; `EMPLOYEE`, `MANAGER` and `ADMIN` accounts must leave it `null`. An ADMIN cannot deactivate their own account or the last active admin.
+
+`DELETE` returns `204 No Content`. It is deliberately refused with `400` for anyone who has raised a ticket, been assigned a ticket, written a reply or decided an approval — use `deactivate` for those accounts so the audit trail stays intact. The last admin account and your own account also cannot be deleted.
 
 ---
 
