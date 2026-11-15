@@ -6,6 +6,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 app:
+  jwt:
+    # DEV ONLY. This is a public, committed value so `mvn spring-boot:run` works out of
+    # the box. Production must set JWT_SECRET (>= 32 bytes); the default profile refuses
+    # to start without it.
+    secret: ${JWT_SECRET:local-dev-only-secret-do-not-use-in-production-0123456789}
   seed:
     enabled: true          # auto-create demo users when the DB is empty
     demo-tickets: true     # seed ~80 historical tickets for the dashboard

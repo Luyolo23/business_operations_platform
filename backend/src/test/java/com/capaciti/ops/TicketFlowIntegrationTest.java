@@ -28,7 +28,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.junit.jupiter.api.Tag;
 
 // Forces mock AI so the test is deterministic even if AI_PROVIDER=llm is exported in your shell.
-@SpringBootTest(properties = {"app.ai.provider=mock", "app.seed.enabled=true", "app.seed.demo-tickets=false"})
+@SpringBootTest(properties = {
+        "app.ai.provider=mock",
+        "app.seed.enabled=true",
+        "app.seed.demo-tickets=false",
+        "app.jwt.secret=integration-test-secret-at-least-32-bytes-long"
+})
 @AutoConfigureMockMvc
 @Testcontainers          // was: disabledWithoutDocker=true — removed so Docker absence is an explicit failure, not a silent skip
 @Tag("integration")      // exclude with: mvn test -DexcludedGroups=integration  (only when Docker is unavailable)
