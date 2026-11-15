@@ -40,6 +40,7 @@ All demo passwords are **`Passw0rd!`**. Roles: `EMPLOYEE < AGENT < MANAGER < ADM
 | `agent.ops@ops.local` | AGENT | Operations |
 | `employee@ops.local` | EMPLOYEE | — |
 
+- The login page shows the demo-account pills **only when the backend reports demo mode** (`GET /api/config` → `{demoMode: true}`). That is controlled by `app.demo.show-accounts`: `true` in the `dev` profile, `false` by default. Production builds therefore never advertise these credentials.
 - **Self-registration** ("Create an account" on the login page) always creates an **EMPLOYEE**.
 - **Staff accounts** (AGENT/MANAGER/ADMIN) are created by an ADMIN on the **People** page (or `POST /api/users`).
 - Deactivated users cannot sign in, but their ticket history is kept. An ADMIN can switch them back on.
@@ -88,7 +89,7 @@ SELECT * FROM flyway_schema_history;
 
 | Source | File | Runs when |
 |---|---|---|
-| Schema + templates + routing rules/SLAs | `backend/src/main/resources/db/migration/V1–V3` | Every start (Flyway) |
+| Schema + templates + routing rules/SLAs | `backend/src/main/resources/db/migration/V1–V4` | Every start (Flyway) |
 | 7 demo users + 80 tickets | `backend/.../config/DataSeeder.java` | Only with `SPRING_PROFILES_ACTIVE=dev` **and** an empty `users` table |
 
 Responses, approvals, notifications and audit logs are **created live** as you use the app — they are not seeded.
@@ -100,11 +101,16 @@ Responses, approvals, notifications and audit logs are **created live** as you u
 `make backend` runs with `SPRING_PROFILES_ACTIVE=dev`, which enables the seeder. To start without demo users and tickets:
 
 ```bash
-# 1. Start the backend without the dev profile
-cd backend && mvn spring-boot:run
+# 1. Start the backend without the dev profile. This needs a real JWT_SECRET
+#    (>= 32 bytes) because only the dev profile has a local fallback.
+cd backend && JWT_SECRET="$(openssl rand -base64 48)" mvn spring-boot:run
 
 # or force seeding off while keeping the dev profile
 SPRING_PROFILES_ACTIVE=dev APP_SEED_ENABLED=false mvn spring-boot:run
+
+# hide the demo-login pills too (the dev profile enables them)
+SPRING_PROFILES_ACTIVE=dev APP_SEED_ENABLED=false APP_DEMO_SHOW_ACCOUNTS=false \
+  mvn spring-boot:run
 ```
 
 The seeder only runs when the `users` table is empty, so turning it off does **not** delete rows that already exist. To remove existing demo rows, reset the volume with `docker compose down -v` (or delete the rows with SQL), then start again with seeding disabled. Schema, templates and routing rules still come from the Flyway migrations and are always applied.
@@ -185,7 +191,8 @@ Every reply — AI-drafted or manually written — is screened by the same rules
 
 ## 8. Gotchas
 
-- `make full` requires `JWT_SECRET` in `.env`.
+- `make full` requires `JWT_SECRET` in `.env`. Any profile other than `dev` also needs `JWT_SECRET` (the app fails fast without it).
+- Demo-account pills appear only when the backend reports `demoMode: true` (dev profile).
 - `make down` keeps data; use `down -v` to reset.
 - Dev DB is `ops/ops` on 5433; full stack uses `DB_PASSWORD` from `.env`.
 - User management lives on the **People** page and is ADMIN-only.

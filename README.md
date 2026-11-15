@@ -131,7 +131,14 @@ In pgAdmin: **Object → Register → Server…**, fill in the table above, then
 ## Demo Accounts
 
 > Password for all demo accounts: **`Passw0rd!`**  
-> Demo data is seeded only when `SPRING_PROFILES_ACTIVE=dev` is active.
+> Demo data is seeded only when `SPRING_PROFILES_ACTIVE=dev` is active. The login
+> page shows these accounts only when `GET /api/config` reports `demoMode: true`
+> (controlled by `app.demo.show-accounts`, true in the dev profile and false by
+> default), so production builds never advertise them.
+>
+> Any profile other than `dev` must set `JWT_SECRET` (at least 32 bytes); the app
+> fails fast at startup otherwise. The dev profile has a clearly-labelled local-only
+> fallback.
 
 | Email | Role | Notes |
 |-------|------|-------|
@@ -215,7 +222,7 @@ Set `AI_PROVIDER=mock` (the default) to use the built-in keyword classifier and 
 | 3 | Analytics & tracking | `analytics` | `GET /api/analytics/summary`, `/insights` |
 | 4 | Weekly PDF report | `report` | `GET /api/reports/weekly`, `/weekly/pdf` |
 | 5 | Predictive workload forecast | `forecast` | `GET /api/forecast` |
-| 6 | Compliance & risk layer | `compliance` | `GET /api/compliance/report`, `/audit` |
+| 6 | Compliance & risk layer | `compliance` | `GET /api/compliance/overview`, `/report`, `/audit` |
 | 7 | Workflow automation & notifications | `workflow`, `notification`, `response.Approval*` | `GET/POST /api/approvals`, `/api/notifications` |
 | 8 | Deployment & documentation | `docs/`, `docker-compose.*.yml`, `Makefile` | — |
 
@@ -243,10 +250,11 @@ Set `AI_PROVIDER=mock` (the default) to use the built-in keyword classifier and 
 │   ├── src/main/resources/
 │   │   ├── application.yml
 │   │   ├── application-dev.yml   ← demo seeder config (dev profile)
-│   │   └── db/migration/         ← Flyway SQL (V1, V2, V3)
+│   │   └── db/migration/         ← Flyway SQL (V1–V4; add new V5+ files only)
 │   └── src/test/
 │       └── java/com/capaciti/ops/
-│           └── TicketFlowIntegrationTest.java  (+ 4 unit test classes)
+│           ├── TicketFlowIntegrationTest.java  (Testcontainers)
+│           └── <module>/…                      (unit tests)
 │
 ├── frontend/                  React + TypeScript (Vite)
 │   ├── src/

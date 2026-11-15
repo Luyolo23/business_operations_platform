@@ -75,13 +75,20 @@ Open **http://localhost:8081** for the frontend or **http://localhost:8080/swagg
 
 ---
 
-## CI (GitHub Actions — to be configured)
+## CI (GitHub Actions)
 
-Recommended workflow jobs:
+Workflow: `.github/workflows/ci.yml`. It runs on pushes to `main`, `master` and
+`features/**`, and on every pull request.
 
-| Job | Command |
-|-----|---------|
-| Unit tests | `cd backend && mvn -q test -DexcludedGroups=integration` |
-| Integration tests | `cd backend && mvn -q test -Dgroups=integration` (Docker required) |
-| Frontend build | `cd frontend && npm ci && npm run build` |
-| Docker build | `docker compose -f docker-compose.full.yml build --no-cache` |
+| Job | What it runs |
+|-----|--------------|
+| `Backend unit tests` | `cd backend && mvn -B test -DexcludedGroups=integration` |
+| `Frontend build` | Node 22, `cd frontend && npm ci && npm run build` |
+
+Not yet in CI (tracked for later hardening): the Testcontainers integration suite,
+frontend tests, a Docker image build and linting. Run them locally before merging:
+
+| Check | Command |
+|-------|---------|
+| Integration tests | `cd backend && mvn test -Dgroups=integration` (Docker required) |
+| Full stack smoke test | `docker compose -f docker-compose.full.yml up --build` |

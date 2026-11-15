@@ -38,7 +38,7 @@ The React/TypeScript frontend talks exclusively to the Spring Boot REST API.
                                 │ JDBC (port 5432)
 ┌───────────────────────────────▼────────────────────────────────────────┐
 │                     PostgreSQL 16 (postgres container)                 │
-│  Schema managed by Flyway  (V1, V2, V3 migrations)                    │
+│  Schema managed by Flyway  (V1–V4 migrations; add new files only)     │
 └────────────────────────────────────────────────────────────────────────┘
                                 │ HTTPS
                          (optional)
@@ -65,7 +65,7 @@ The React/TypeScript frontend talks exclusively to the Spring Boot REST API.
 | `notification` | In-app notifications & email stub | `NotificationService`, `LoggingEmailSender` |
 | `user` | User management (ADMIN CRUD) | `UserController`, `UserRepository` |
 | `security` | JWT auth, BCrypt password encoding | `JwtService`, `JwtAuthFilter`, `SecurityConfig` |
-| `config` | Data seeder (dev), Swagger metadata | `DataSeeder`, `MetaController` |
+| `config` | Data seeder (dev), Swagger metadata, public config | `DataSeeder`, `MetaController`, `PublicConfigController` |
 | `common` | Shared DTOs, global error handling | `GlobalExceptionHandler`, `ApiError`, `PageResponse` |
 
 ---
@@ -103,8 +103,9 @@ BiasChecker / ComplianceService  →  risk level (NONE | LOW | MEDIUM | HIGH)
 
 ## Security Model
 
-- All endpoints (except `/api/auth/*`, `/actuator/health`, Swagger) require a JWT **Bearer** token.
-- Tokens are signed with HMAC-SHA256 using `JWT_SECRET`, expire in 8 hours.
+- All endpoints (except `/api/auth/*`, `/api/config`, `/actuator/health`, Swagger) require a JWT **Bearer** token.
+- Tokens are signed with HMAC-SHA256 using `JWT_SECRET`, expire in 8 hours. The app fails fast at startup if `JWT_SECRET` is missing or shorter than 32 bytes; the `dev` profile supplies a local-only default.
+- `GET /api/config` exposes only `{demoMode}` so the login page can decide whether to show demo credentials. `demoMode` is backed by `app.demo.show-accounts` (false by default, true in `dev`).
 - Roles: `EMPLOYEE < AGENT < MANAGER < ADMIN` (enforced in `SecurityConfig`).
 - Passwords are BCrypt-hashed (strength 10) — never stored in plain text.
 
@@ -112,7 +113,9 @@ BiasChecker / ComplianceService  →  risk level (NONE | LOW | MEDIUM | HIGH)
 
 ## Database Schema (summary)
 
-In `db/migration/V1__init_schema.sql`. Key tables:
+Flyway migrations under `db/migration/` (`V1__init_schema.sql` through
+`V4__requester_resolution_confirmation.sql`). Never edit an applied migration; add
+`V5__*.sql` (and so on) for schema changes. Key tables:
 
 | Table | Purpose |
 |-------|---------|

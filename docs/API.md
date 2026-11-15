@@ -1,7 +1,8 @@
 # API Reference
 
 Base URL (local dev): `http://localhost:8080`  
-All endpoints except Auth require `Authorization: Bearer <token>`.  
+All endpoints except Auth, `/api/config` and the Swagger UI require
+`Authorization: Bearer <token>`.  
 Full interactive docs: **http://localhost:8080/swagger-ui.html**
 
 ---
@@ -16,12 +17,34 @@ Full interactive docs: **http://localhost:8080/swagger-ui.html**
 
 ---
 
+## Public config  `/api/config`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/config` | None | Safe, token-free settings for the login screen. Returns `{demoMode: boolean}`. |
+
+`demoMode` is backed by `app.demo.show-accounts` (default `false`; the `dev` profile
+sets it to `true`). The frontend hides the demo-account pills unless it is `true`.
+Only add values here that are safe for an unauthenticated caller to read.
+
+---
+
+## Metadata  `/api/meta`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/meta` | Any | Current enum values for categories, priorities, statuses and tones. |
+
+Used by the frontend to build dropdowns instead of hard-coding enum values.
+
+---
+
 ## Tickets  `/api/tickets`
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `POST` | `/api/tickets` | Any | Create a ticket. Body: `{title, description}`. Auto-classifies and routes. |
-| `GET`  | `/api/tickets` | Any | List tickets (paginated). Query: `?category=IT&status=OPEN&page=0&size=20` |
+| `GET`  | `/api/tickets` | Any | List tickets (paginated). Query: `?category=IT&status=ASSIGNED&page=0&size=20` |
 | `GET`  | `/api/tickets/{id}` | Any | Get a single ticket (employees see only their own) |
 | `PATCH`| `/api/tickets/{id}/status` | AGENT+ | Update status. Body: `{status}`. `RESOLVED`/`CLOSED` are rejected until a reply has been sent. |
 | `PATCH`| `/api/tickets/{id}/classification` | AGENT+ | Re-classify. Body: `{category, priority}` |
@@ -105,8 +128,9 @@ Only the employee who raised the ticket may call this endpoint. `comment` is opt
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET`  | `/api/compliance/report` | MANAGER+ | Risk summary. Query: `?days=30` |
-| `GET`  | `/api/compliance/audit` | MANAGER+ | Paginated audit log. Query: `?page=0&size=20` |
+| `GET`  | `/api/compliance/overview` | MANAGER+ | Risk/approval headline metrics. Query: `?days=30` |
+| `GET`  | `/api/compliance/report` | MANAGER+ | Risk summary with recent flagged items. Query: `?days=30` |
+| `GET`  | `/api/compliance/audit` | MANAGER+ | Paginated audit log. Query: `?page=0&size=50` |
 
 ---
 
@@ -137,7 +161,7 @@ All errors return a consistent JSON envelope:
   "status": 400,
   "error": "Bad Request",
   "message": "Validation failed",
-  "details": { "email": "must not be blank" }
+  "fieldErrors": { "email": "must not be blank" }
 }
 ```
 
@@ -145,7 +169,7 @@ All errors return a consistent JSON envelope:
 |--------|------|
 | 400 | Validation failure or bad request body |
 | 401 | Missing or invalid/expired JWT |
-| 403 | Authenticated but insufficient role |
+| 403 | Authenticated but not allowed to perform this action or see this resource |
 | 404 | Resource not found |
 | 409 | Conflict (e.g. duplicate email) |
 | 500 | Unexpected server error (see backend logs) |
