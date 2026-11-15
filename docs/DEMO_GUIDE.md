@@ -48,7 +48,8 @@ All demo passwords are **`Passw0rd!`**. Roles: `EMPLOYEE < AGENT < MANAGER < ADM
 | Can do | EMPLOYEE | AGENT | MANAGER | ADMIN |
 |---|---|---|---|---|
 | Create ticket | ✅ | ✅ | ✅ | ✅ |
-| See tickets | own | dept + assigned | all | all |
+| See tickets | own | dept + assigned + own | all | all |
+| See reply drafts / risk review state | ❌ (approved replies only) | ✅ | ✅ | ✅ |
 | Change status / reclassify | ❌ | ✅ | ✅ | ✅ |
 | Reassign | ❌ | ❌ | ✅ | ✅ |
 | Draft AI reply / write a reply | ❌ | ✅ | ✅ | ✅ |

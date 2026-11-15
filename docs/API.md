@@ -50,7 +50,7 @@ Used by the frontend to build dropdowns instead of hard-coding enum values.
 | `PATCH`| `/api/tickets/{id}/classification` | AGENT+ | Re-classify. Body: `{category, priority}` |
 | `PATCH`| `/api/tickets/{id}/assignee` | MANAGER+ | Reassign. Body: `{userId}` |
 | `POST` | `/api/tickets/{id}/resolution` | Requester | Confirm or reject the fix. Body: `{confirmed, comment?}` |
-| `GET`  | `/api/tickets/{id}/responses` | Any | List all drafted responses for a ticket |
+| `GET`  | `/api/tickets/{id}/responses` | Any | Staff see every response including drafts and risk details. The requester sees `APPROVED` replies only, with internal risk/approval fields removed. |
 | `POST` | `/api/tickets/{id}/responses` | AGENT+ | Draft a reply. Body: `{tone, body?}`. Omit `body` for an AI/template draft; send `body` for a manually written reply. Both are risk-screened. |
 
 ### Replies and resolution
@@ -147,7 +147,7 @@ Only the employee who raised the ticket may call this endpoint. `comment` is opt
 
 User objects include `active`. Only `AGENT`s may have a `department`; `EMPLOYEE`, `MANAGER` and `ADMIN` accounts must leave it `null`. An ADMIN cannot deactivate their own account or the last active admin.
 
-`DELETE` returns `204 No Content`. It is deliberately refused with `400` for anyone who has raised a ticket, been assigned a ticket, written a reply or decided an approval — use `deactivate` for those accounts so the audit trail stays intact. The last admin account and your own account also cannot be deleted.
+`DELETE` returns `204 No Content`. It is deliberately refused with `400` for anyone who has raised a ticket, been assigned a ticket, written a reply or decided an approval — use `deactivate` for those accounts so the audit trail stays intact. Your own account and the last active admin cannot be deleted; the last-admin check counts only active admins, matching deactivation.
 
 ---
 
