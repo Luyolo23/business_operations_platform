@@ -33,7 +33,8 @@ export interface Ticket {
 
 export interface TicketResponse {
   id: number; ticketId: number; tone: Tone; body: string; generatedBy: string; transparencyNote: string | null;
-  status: ResponseStatus; riskLevel: RiskLevel; riskFlags: string[]; riskNotes: string | null;
+  // Internal review fields are null for requesters (employees); staff receive the full view.
+  status: ResponseStatus; riskLevel: RiskLevel | null; riskFlags: string[]; riskNotes: string | null;
   approvalId: number | null; createdAt: string;
 }
 

@@ -150,14 +150,14 @@ export default function TicketDetailPage() {
                   {(responses.data ?? []).map((r) => (
                     <div className="reply" key={r.id}>
                       <div className="reply-meta">
-                        <RiskMark level={r.riskLevel} />
-                        <span className="tag">{r.status === 'APPROVED' ? 'Sent' : r.status === 'REJECTED' ? 'Rejected' : 'Waiting for approval'}</span>
+                        {isStaff && r.riskLevel && <RiskMark level={r.riskLevel} />}
+                        <span className="tag">{!isStaff ? 'Sent' : r.status === 'APPROVED' ? 'Sent' : r.status === 'REJECTED' ? 'Rejected' : 'Waiting for approval'}</span>
                         <span className="tag">{TONE_LABEL[r.tone]} tone</span>
                         {r.generatedBy.startsWith('manual') && <span className="tag">Written by staff</span>}
                         <span className="tag muted">{fmtDate(r.createdAt)}</span>
                       </div>
-                      <div className="letter" style={{ '--edge': RISK_COLOR[r.riskLevel] } as CSSProperties}>{r.body}</div>
-                      {r.riskFlags.length > 0 && <p className="reply-note">Held for review because it {r.riskFlags.map(flagText).join(', and ')}.</p>}
+                      <div className="letter" style={{ '--edge': r.riskLevel ? RISK_COLOR[r.riskLevel] : undefined } as CSSProperties}>{r.body}</div>
+                      {isStaff && r.riskFlags.length > 0 && <p className="reply-note">Held for review because it {r.riskFlags.map(flagText).join(', and ')}.</p>}
                       {isStaff && r.transparencyNote && <p className="reply-note">How this was written: {r.transparencyNote}</p>}
                     </div>
                   ))}
