@@ -75,6 +75,13 @@ class TicketFlowIntegrationTest {
     }
 
     @Test
+    void publicConfigIsReachableWithoutATokenAndDemoAccountsAreOffByDefault() throws Exception {
+        mvc.perform(get("/api/config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.demoMode").value(false));
+    }
+
+    @Test
     void ticketIsClassifiedRoutedAndPrivateToItsOwner() throws Exception {
         String employee = login("employee@ops.local");
         JsonNode t = createTicket(employee, "VPN not working", "I cannot connect to the VPN from my laptop");

@@ -1,6 +1,7 @@
-import { lazy, Suspense, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
+import { configApi } from '../api/endpoints';
 
 // The 3D scene is loaded on demand so the form is interactive immediately.
 const WorkflowScene = lazy(() => import('../components/workflow/WorkflowScene'));
@@ -19,6 +20,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Demo pills are opt-in: the backend must explicitly report demo mode. If the
+  // config request fails we stay hidden (fail closed) so production never leaks
+  // seeded credentials because of a transient error.
+  const [demoMode, setDemoMode] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    configApi.get()
+      .then((cfg) => { if (!cancelled) setDemoMode(cfg.demoMode === true); })
+      .catch(() => { if (!cancelled) setDemoMode(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -62,15 +75,17 @@ export default function LoginPage() {
             {mode === 'login' ? 'Create an account' : 'Sign in'}
           </button>
         </p>
-        <div className="try">
-          <p>Demo build: sign in as</p>
-          <div className="pills">
-            {DEMO.map((d) => (
-              <button key={d.email} className="pill-btn" aria-pressed="false" disabled={busy}
-                onClick={() => go(() => login(d.email, 'Passw0rd!'))}>{d.label}</button>
-            ))}
+        {demoMode && (
+          <div className="try">
+            <p>Demo build: sign in as</p>
+            <div className="pills">
+              {DEMO.map((d) => (
+                <button key={d.email} className="pill-btn" aria-pressed="false" disabled={busy}
+                  onClick={() => go(() => login(d.email, 'Passw0rd!'))}>{d.label}</button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       <section className="signin-viz" aria-label="How the platform works">

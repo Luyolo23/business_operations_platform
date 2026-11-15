@@ -18,6 +18,9 @@ export interface User {
 }
 export interface AuthResponse { token: string; expiresInSeconds: number; user: User }
 
+/** Public, token-free settings from GET /api/config. */
+export interface PublicConfig { demoMode: boolean }
+
 export interface PageResponse<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number }
 
 export interface Ticket {

@@ -1,6 +1,11 @@
 import { api, qs } from './client';
 import type * as T from './types';
 
+/** Public settings used before login (no token required). */
+export const configApi = {
+  get: () => api<T.PublicConfig>('/api/config'),
+};
+
 export const authApi = {
   login: (email: string, password: string) => api<T.AuthResponse>('/api/auth/login', 'POST', { email, password }),
   register: (fullName: string, email: string, password: string) =>

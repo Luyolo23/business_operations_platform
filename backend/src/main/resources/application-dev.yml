@@ -14,3 +14,5 @@ app:
   seed:
     enabled: true          # auto-create demo users when the DB is empty
     demo-tickets: true     # seed ~80 historical tickets for the dashboard
+  demo:
+    show-accounts: true    # show the demo-login pills; never enable in production
