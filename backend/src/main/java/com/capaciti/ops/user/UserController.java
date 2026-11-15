@@ -150,8 +150,8 @@ public class UserController {
         if (u.getId().equals(caller.id())) {
             throw new BadRequestException("You cannot delete your own account");
         }
-        if (u.getRole() == Role.ADMIN && users.countByRole(Role.ADMIN) <= 1) {
-            throw new BadRequestException("Cannot delete the last admin account");
+        if (u.getRole() == Role.ADMIN && users.countByRoleAndActiveTrue(Role.ADMIN) <= 1) {
+            throw new BadRequestException("Cannot delete the last active admin");
         }
 
         long history = tickets.countByRequester_Id(id)

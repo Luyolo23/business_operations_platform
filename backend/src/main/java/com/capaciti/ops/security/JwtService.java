@@ -49,9 +49,25 @@ public class JwtService {
     public Optional<AuthUser> parse(String token) {
         try {
             Claims c = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-            Long uid = c.get("uid", Number.class).longValue();
-            Role role = Role.valueOf(c.get("role", String.class));
-            return Optional.of(new AuthUser(uid, c.getSubject(), role));
+
+            // A valid signature only proves the token came from us. The claims must also be
+            // present and usable; otherwise callers would hit a NullPointerException later.
+            Object uidClaim = c.get("uid");
+            if (!(uidClaim instanceof Number uid)) return Optional.empty();
+
+            String roleClaim = c.get("role", String.class);
+            if (roleClaim == null) return Optional.empty();
+            Role role;
+            try {
+                role = Role.valueOf(roleClaim);
+            } catch (IllegalArgumentException e) {
+                return Optional.empty();
+            }
+
+            String email = c.getSubject();
+            if (email == null || email.isBlank()) return Optional.empty();
+
+            return Optional.of(new AuthUser(uid.longValue(), email, role));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
         }

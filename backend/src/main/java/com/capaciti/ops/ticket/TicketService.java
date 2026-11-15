@@ -80,7 +80,9 @@ public class TicketService {
             spec = spec.and((r, q, cb) -> cb.equal(r.get("requester").get("id"), caller.id()));
         } else if (caller.role() == Role.AGENT) {
             Category dept = loadUser(caller.id()).getDepartment();
+            // An agent can always see tickets they raised, even when another department handles them.
             spec = spec.and((r, q, cb) -> cb.or(
+                    cb.equal(r.get("requester").get("id"), caller.id()),
                     cb.equal(r.get("assignee").get("id"), caller.id()),
                     dept == null ? cb.disjunction() : cb.equal(r.get("category"), dept)));
         }
@@ -189,6 +191,7 @@ public class TicketService {
         Ticket t = loadVisible(id, caller);
         User assignee = loadUser(userId);
         if (assignee.getRole() == Role.EMPLOYEE) throw new ForbiddenException("Cannot assign to an employee");
+        if (!assignee.isActive()) throw new ForbiddenException("Cannot assign to an inactive user");
         t.setAssignee(assignee);
         if (t.getStatus() == TicketStatus.NEW) t.setStatus(TicketStatus.ASSIGNED);
         t.setUpdatedAt(Instant.now());
@@ -205,7 +208,9 @@ public class TicketService {
         boolean allowed = switch (caller.role()) {
             case ADMIN, MANAGER -> true;
             case EMPLOYEE -> t.getRequester().getId().equals(caller.id());
-            case AGENT -> (t.getAssignee() != null && t.getAssignee().getId().equals(caller.id()))
+            // Staff can see tickets they raised themselves, even if another department owns them.
+            case AGENT -> t.getRequester().getId().equals(caller.id())
+                    || (t.getAssignee() != null && t.getAssignee().getId().equals(caller.id()))
                     || t.getCategory() == loadUser(caller.id()).getDepartment();
         };
         if (!allowed) throw new ForbiddenException("You do not have access to this ticket");

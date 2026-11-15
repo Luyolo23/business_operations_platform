@@ -52,7 +52,7 @@ public class WorkflowService {
         Category department = rules.findByCategoryAndActiveTrue(ticket.getCategory())
                 .map(RoutingRule::getTargetDepartment).orElse(ticket.getCategory());
 
-        Optional<User> agent = users.findByRoleAndDepartment(Role.AGENT, department).stream()
+        Optional<User> agent = users.findByRoleAndDepartmentAndActiveTrue(Role.AGENT, department).stream()
                 .min(Comparator.comparingLong(a -> tickets.countByAssigneeIdAndStatusIn(a.getId(), OPEN_STATUSES)));
 
         agent.ifPresent(a -> {
@@ -94,6 +94,7 @@ public class WorkflowService {
     }
 
     private void notifyManagers(Ticket t, String subject, String message) {
-        users.findByRoleIn(List.of(Role.MANAGER)).forEach(m -> notifications.notify(m, t.getId(), subject, message));
+        users.findByRoleInAndActiveTrue(List.of(Role.MANAGER))
+                .forEach(m -> notifications.notify(m, t.getId(), subject, message));
     }
 }

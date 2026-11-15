@@ -86,7 +86,7 @@ public class ResponseService {
             approvalId = a.getId();
             ticket.setStatus(TicketStatus.AWAITING_APPROVAL);
             ticket.setUpdatedAt(Instant.now());
-            users.findByRoleIn(List.of(Role.MANAGER)).forEach(m -> notifications.notify(m, ticket.getId(),
+            users.findByRoleInAndActiveTrue(List.of(Role.MANAGER)).forEach(m -> notifications.notify(m, ticket.getId(),
                     "Approval needed: ticket #" + ticket.getId(),
                     "A " + risk.getLevel() + " risk response needs your review (" + risk.getFlags() + ")."));
             audit.log("RESPONSE_HELD_FOR_APPROVAL", "TicketResponse", r.getId(), caller.email(),
@@ -122,6 +122,16 @@ public class ResponseService {
     public List<ResponseDto> list(Long ticketId, AuthUser caller) {
         ticketService.loadVisible(ticketId, caller);   // access check
         List<TicketResponse> list = responses.findByTicketIdOrderByCreatedAtDesc(ticketId);
+
+        // Requesters are not reviewers: hide unsent/rejected drafts and every internal
+        // risk/approval field. Return before loading risk data so employees cost no extra queries.
+        if (caller.role() == Role.EMPLOYEE) {
+            return list.stream()
+                    .filter(r -> r.getStatus() == ResponseStatus.APPROVED)
+                    .map(ResponseService::toRequesterDto)
+                    .toList();
+        }
+
         Map<Long, RiskAssessment> riskByResponse = compliance.latestByResponse(list);
         List<Long> ids = list.stream().map(TicketResponse::getId).toList();
         Map<Long, Long> approvalByResponse = approvals.findByResponseIdIn(ids).stream()
@@ -148,5 +158,11 @@ public class ResponseService {
         return new ResponseDto(r.getId(), r.getTicket().getId(), r.getTone(), r.getBody(), r.getGeneratedBy(),
                 r.getTransparencyNote(), r.getStatus(), r.getRiskLevel(), flags,
                 risk == null ? null : risk.getNotes(), approvalId, r.getCreatedAt());
+    }
+
+    /** The requester's view: the delivered reply only, with no internal review metadata. */
+    private static ResponseDto toRequesterDto(TicketResponse r) {
+        return new ResponseDto(r.getId(), r.getTicket().getId(), r.getTone(), r.getBody(), r.getGeneratedBy(),
+                null, ResponseStatus.APPROVED, null, List.of(), null, null, r.getCreatedAt());
     }
 }

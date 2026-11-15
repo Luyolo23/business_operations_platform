@@ -3,6 +3,7 @@ package com.capaciti.ops;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -11,9 +12,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.capaciti.ops.notification.NotificationRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
+import javax.crypto.SecretKey;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -45,8 +52,10 @@ class TicketFlowIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired NotificationRepository notificationRepository;
 
     private static final MediaType JSON = MediaType.APPLICATION_JSON;
+    private static final String JWT_SECRET = "integration-test-secret-at-least-32-bytes-long";
 
     private String login(String email) throws Exception {
         String body = mvc.perform(post("/api/auth/login").contentType(JSON)
@@ -142,6 +151,20 @@ class TicketFlowIntegrationTest {
 
         mvc.perform(get("/api/tickets/" + id).header("Authorization", manager))
                 .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+    }
+
+    private JsonNode createUser(String admin, String fullName, String email, String role, String department)
+            throws Exception {
+        Map<String, Object> input = new HashMap<>();
+        input.put("fullName", fullName);
+        input.put("email", email);
+        input.put("password", "Passw0rd!");
+        input.put("role", role);
+        if (department != null) input.put("department", department);
+        String body = mvc.perform(post("/api/users").header("Authorization", admin).contentType(JSON)
+                        .content(json.writeValueAsString(input)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return json.readTree(body);
     }
 
     private JsonNode writeReply(String auth, long ticketId, String body) throws Exception {
@@ -322,11 +345,172 @@ class TicketFlowIntegrationTest {
     }
 
     @Test
+    void deletingAnAdminUsesTheActiveAdminCount() throws Exception {
+        String admin = login("admin@ops.local");
+        String email = "second-admin-" + System.nanoTime() + "@ops.local";
+        long id = createUser(admin, "Second Admin", email, "ADMIN", null).get("id").asLong();
+
+        mvc.perform(patch("/api/users/" + id + "/deactivate").header("Authorization", admin))
+                .andExpect(status().isOk());
+
+        // Two ADMIN rows exist, but only one is active: the last-active-admin guard still applies.
+        mvc.perform(delete("/api/users/" + id).header("Authorization", admin))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/users").header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.email == '" + email + "')]").isNotEmpty());
+    }
+
+    @Test
     void managementEndpointsAreForManagersOnly() throws Exception {
         mvc.perform(get("/api/analytics/summary").header("Authorization", login("employee@ops.local")))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/analytics/summary").header("Authorization", login("manager@ops.local")))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void forbiddenRequestsReturnTheJsonApiErrorEnvelope() throws Exception {
+        mvc.perform(get("/api/analytics/summary").header("Authorization", login("employee@ops.local")))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(JSON))
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("Forbidden"))
+                .andExpect(jsonPath("$.message").value(notNullValue()));
+    }
+
+    @Test
+    void employeesOnlySeeApprovedRepliesWithoutInternalRiskDetails() throws Exception {
+        String employee = login("employee@ops.local");
+        long id = createTicket(employee, "Refund question", "Can you tell me about my refund")
+                .get("id").asLong();
+        String agent = login("agent.finance@ops.local");
+
+        JsonNode risky = writeReply(agent, id, "We guarantee you will get your money back.");
+        assertEquals("PENDING_APPROVAL", risky.get("status").asText());
+        long approvalId = risky.get("approvalId").asLong();
+
+        // Staff keep the full picture, including unsent drafts.
+        mvc.perform(get("/api/tickets/" + id + "/responses").header("Authorization", agent))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("PENDING_APPROVAL"));
+
+        // The requester must not see an unsent draft.
+        mvc.perform(get("/api/tickets/" + id + "/responses").header("Authorization", employee))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        mvc.perform(post("/api/approvals/" + approvalId + "/decision")
+                        .header("Authorization", login("manager@ops.local"))
+                        .contentType(JSON).content("{\"approve\":false,\"comment\":\"not yet\"}"))
+                .andExpect(status().isOk());
+
+        // ...nor a rejected draft.
+        mvc.perform(get("/api/tickets/" + id + "/responses").header("Authorization", employee))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        writeReply(agent, id, "Your refund is being processed.");
+
+        // An approved reply is visible, but internal risk/review metadata stays staff-only.
+        mvc.perform(get("/api/tickets/" + id + "/responses").header("Authorization", employee))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("APPROVED"))
+                .andExpect(jsonPath("$[0].riskLevel").value(nullValue()))
+                .andExpect(jsonPath("$[0].riskFlags").isEmpty())
+                .andExpect(jsonPath("$[0].riskNotes").value(nullValue()))
+                .andExpect(jsonPath("$[0].approvalId").value(nullValue()))
+                .andExpect(jsonPath("$[0].transparencyNote").value(nullValue()));
+    }
+
+    @Test
+    void anAgentCanOpenATicketTheyRaisedForAnotherDepartment() throws Exception {
+        String agent = login("agent.it@ops.local");
+        JsonNode t = createTicket(agent, "Payslip missing for last month",
+                "I did not receive my payslip and need it urgently for a loan");
+        long id = t.get("id").asLong();
+        assertEquals("HR", t.get("category").asText());
+
+        mvc.perform(get("/api/tickets/" + id).header("Authorization", agent))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requesterName").value("Ian IT-Agent"));
+
+        mvc.perform(get("/api/tickets").param("size", "100").header("Authorization", agent))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == " + id + ")]").isNotEmpty());
+    }
+
+    @Test
+    void inactiveAgentsAreNeverAutoAssigned() throws Exception {
+        String admin = login("admin@ops.local");
+        String employee = login("employee@ops.local");
+
+        // Give the seeded IT agent at least one open ticket so the inactive agent would win on load.
+        createTicket(employee, "VPN not working", "I cannot connect to the VPN from my laptop");
+
+        String email = "inactive-it-" + System.nanoTime() + "@ops.local";
+        long inactiveId = createUser(admin, "Inactive IT", email, "AGENT", "IT").get("id").asLong();
+        mvc.perform(patch("/api/users/" + inactiveId + "/deactivate").header("Authorization", admin))
+                .andExpect(status().isOk());
+
+        JsonNode t = createTicket(employee, "Printer offline", "The office printer shows an error");
+
+        assertEquals("Ian IT-Agent", t.get("assigneeName").asText());
+    }
+
+    @Test
+    void manualAssignmentRejectsInactiveAndEmployeeAccounts() throws Exception {
+        String admin = login("admin@ops.local");
+        String manager = login("manager@ops.local");
+        long ticketId = createTicket(login("employee@ops.local"), "Laptop request", "I need a new laptop")
+                .get("id").asLong();
+
+        long employeeId = createUser(admin, "Assign Target", "assign-employee-" + System.nanoTime() + "@ops.local",
+                "EMPLOYEE", null).get("id").asLong();
+        mvc.perform(patch("/api/tickets/" + ticketId + "/assignee").header("Authorization", manager)
+                        .contentType(JSON).content(json.writeValueAsString(Map.of("userId", employeeId))))
+                .andExpect(status().isForbidden());
+
+        long inactiveAgentId = createUser(admin, "Inactive Agent",
+                "assign-inactive-" + System.nanoTime() + "@ops.local", "AGENT", "IT").get("id").asLong();
+        mvc.perform(patch("/api/users/" + inactiveAgentId + "/deactivate").header("Authorization", admin))
+                .andExpect(status().isOk());
+
+        mvc.perform(patch("/api/tickets/" + ticketId + "/assignee").header("Authorization", manager)
+                        .contentType(JSON).content(json.writeValueAsString(Map.of("userId", inactiveAgentId))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void inactiveManagersAreNotNotified() throws Exception {
+        String admin = login("admin@ops.local");
+        long inactiveManagerId = createUser(admin, "Inactive Manager",
+                "inactive-manager-" + System.nanoTime() + "@ops.local", "MANAGER", null).get("id").asLong();
+        mvc.perform(patch("/api/users/" + inactiveManagerId + "/deactivate").header("Authorization", admin))
+                .andExpect(status().isOk());
+
+        createTicket(login("employee@ops.local"), "URGENT: email down",
+                "Outlook email is down for the whole team, we cannot work");
+
+        assertTrue(notificationRepository.findTop50ByUserIdOrderByCreatedAtDesc(inactiveManagerId).isEmpty(),
+                "an inactive manager must not receive new notifications");
+    }
+
+    @Test
+    void tokensWithMissingClaimsAreRejectedAsUnauthorized() throws Exception {
+        SecretKey key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
+
+        String noUserId = Jwts.builder().subject("employee@ops.local").claim("role", "EMPLOYEE")
+                .signWith(key).compact();
+        mvc.perform(get("/api/tickets").header("Authorization", "Bearer " + noUserId))
+                .andExpect(status().isUnauthorized());
+
+        String noRole = Jwts.builder().subject("employee@ops.local").claim("uid", 1L)
+                .signWith(key).compact();
+        mvc.perform(get("/api/tickets").header("Authorization", "Bearer " + noRole))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
