@@ -146,8 +146,9 @@ AGENT replies — either let the assistant draft it, or write it manually
    → risk check (PII, discrimination, promises, legal, tone, gendered, emails)
       ├─ NONE/LOW   → auto-approved → sent → IN_PROGRESS + firstResponseAt
       └─ MEDIUM/HIGH → AWAITING_APPROVAL → MANAGER approves/rejects
-AGENT / MANAGER / ADMIN may then mark the ticket RESOLVED (or CLOSED)
+AGENT / MANAGER / ADMIN may then mark the ticket RESOLVED
    → allowed only after the first reply has reached the requester
+EMPLOYEE confirms the fix → CLOSED (or says it is still broken → IN_PROGRESS)
 SLA escalation every 15 min; urgent tickets notify managers immediately.
 ```
 
@@ -197,7 +198,7 @@ Every reply — AI-drafted or manually written — is screened by the same rules
 - `make down` keeps data; use `down -v` to reset.
 - Dev DB is `ops/ops` on 5433; full stack uses `DB_PASSWORD` from `.env`.
 - User management lives on the **People** page and is ADMIN-only.
-- A ticket cannot be resolved or closed until at least one reply has been sent.
+- A ticket cannot be resolved until at least one reply has been sent, and only the requester can close it. Staff cannot force-close a ticket.
 - Default `AI_PROVIDER=mock` needs no API key; `llm` uses Groq/OpenAI and falls back to keywords.
 - Email is simulated (logged); in-app notifications are real DB rows.
 - Never commit `.env`; rotate any exposed `AI_API_KEY`.
