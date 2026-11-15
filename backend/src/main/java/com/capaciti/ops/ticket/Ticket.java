@@ -67,6 +67,11 @@ public class Ticket {
     @Column(name = "requester_feedback", columnDefinition = "text")
     private String requesterFeedback;
 
+    /** Optimistic lock: two people editing the same ticket no longer overwrite each other. */
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

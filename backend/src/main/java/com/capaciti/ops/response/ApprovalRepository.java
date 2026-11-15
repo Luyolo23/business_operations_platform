@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ApprovalRepository extends JpaRepository<Approval, Long> {
     List<Approval> findByStatusOrderByCreatedAtAsc(ApprovalStatus status);
     List<Approval> findByResponseIdIn(Collection<Long> responseIds);
+    boolean existsByStatusAndResponseTicketId(ApprovalStatus status, Long ticketId);
     long countByStatus(ApprovalStatus status);
     long countByDecidedBy_Id(Long userId);
 }

@@ -1,6 +1,8 @@
 package com.capaciti.ops.response;
 
 import com.capaciti.ops.common.Exceptions.BadRequestException;
+import com.capaciti.ops.common.Exceptions.ConflictException;
+import com.capaciti.ops.common.Exceptions.ForbiddenException;
 import com.capaciti.ops.common.Exceptions.NotFoundException;
 import com.capaciti.ops.compliance.AuditService;
 import com.capaciti.ops.compliance.ComplianceService;
@@ -9,6 +11,7 @@ import com.capaciti.ops.notification.NotificationService;
 import com.capaciti.ops.response.ResponseDtos.ApprovalDto;
 import com.capaciti.ops.security.AuthUser;
 import com.capaciti.ops.ticket.Ticket;
+import com.capaciti.ops.ticket.TicketService;
 import com.capaciti.ops.ticket.TicketStatus;
 import com.capaciti.ops.user.User;
 import com.capaciti.ops.user.UserRepository;
@@ -23,16 +26,18 @@ public class ApprovalService {
 
     private final ApprovalRepository approvals;
     private final ResponseService responseService;
+    private final TicketService ticketService;
     private final ComplianceService compliance;
     private final NotificationService notifications;
     private final AuditService audit;
     private final UserRepository users;
 
     public ApprovalService(ApprovalRepository approvals, ResponseService responseService,
-                           ComplianceService compliance, NotificationService notifications,
-                           AuditService audit, UserRepository users) {
+                           TicketService ticketService, ComplianceService compliance,
+                           NotificationService notifications, AuditService audit, UserRepository users) {
         this.approvals = approvals;
         this.responseService = responseService;
+        this.ticketService = ticketService;
         this.compliance = compliance;
         this.notifications = notifications;
         this.audit = audit;
@@ -46,12 +51,26 @@ public class ApprovalService {
     }
 
     @Transactional
-    public ApprovalDto decide(Long approvalId, boolean approve, String comment, AuthUser caller) {
+    public ApprovalDto decide(Long approvalId, Boolean approve, String comment, AuthUser caller) {
+        if (approve == null) throw new BadRequestException("The approve field is required");
         Approval a = approvals.findById(approvalId).orElseThrow(() -> new NotFoundException("Approval not found"));
-        if (a.getStatus() != ApprovalStatus.PENDING) throw new BadRequestException("Approval already decided");
+
+        // Two managers may race to decide the same approval. The second one must not
+        // overwrite the first decision, so a settled approval is a conflict, not a bad request.
+        if (a.getStatus() != ApprovalStatus.PENDING) {
+            throw new ConflictException("This approval has already been decided");
+        }
         User decider = users.findById(caller.id()).orElseThrow(() -> new NotFoundException("User not found"));
         TicketResponse r = a.getResponse();
         Ticket ticket = r.getTicket();
+
+        if (ticket.getStatus() != TicketStatus.AWAITING_APPROVAL) {
+            throw new ConflictException("Ticket #" + ticket.getId() + " is not awaiting approval");
+        }
+        // Independent review: whoever wrote the reply cannot also approve it.
+        if (r.getCreatedBy() != null && r.getCreatedBy().getId().equals(caller.id())) {
+            throw new ForbiddenException("You cannot decide on a response you wrote yourself");
+        }
 
         a.setDecidedBy(decider);
         a.setDecidedAt(Instant.now());
@@ -62,8 +81,8 @@ public class ApprovalService {
         } else {
             a.setStatus(ApprovalStatus.REJECTED);
             r.setStatus(ResponseStatus.REJECTED);
-            ticket.setStatus(TicketStatus.IN_PROGRESS);
-            ticket.setUpdatedAt(Instant.now());
+            // Only AWAITING_APPROVAL -> IN_PROGRESS is legal here; the state machine enforces it.
+            ticketService.transition(ticket, TicketStatus.IN_PROGRESS);
             notifications.notify(r.getCreatedBy(), ticket.getId(), "Response rejected: ticket #" + ticket.getId(),
                     "A manager rejected the drafted response. " + (comment == null ? "" : comment));
         }

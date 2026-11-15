@@ -24,5 +24,5 @@ public final class ResponseDtos {
                               RiskLevel riskLevel, List<String> riskFlags, ApprovalStatus status,
                               String decidedBy, String decisionComment, Instant createdAt, Instant decidedAt) {}
 
-    public record DecisionRequest(boolean approve, String comment) {}
+    public record DecisionRequest(@NotNull Boolean approve, @Size(max = 2000) String comment) {}
 }

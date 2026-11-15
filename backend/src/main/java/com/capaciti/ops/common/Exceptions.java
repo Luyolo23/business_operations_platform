@@ -14,4 +14,9 @@ public final class Exceptions {
     public static class BadRequestException extends RuntimeException {
         public BadRequestException(String message) { super(message); }
     }
+
+    /** The request is valid but conflicts with the resource's current state (HTTP 409). */
+    public static class ConflictException extends RuntimeException {
+        public ConflictException(String message) { super(message); }
+    }
 }

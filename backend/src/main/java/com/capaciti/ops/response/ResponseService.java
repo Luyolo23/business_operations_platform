@@ -3,6 +3,7 @@ package com.capaciti.ops.response;
 import com.capaciti.ops.ai.GeneratedResponse;
 import com.capaciti.ops.ai.ResponseGenerator;
 import com.capaciti.ops.common.Exceptions.BadRequestException;
+import com.capaciti.ops.common.Exceptions.ConflictException;
 import com.capaciti.ops.common.Exceptions.NotFoundException;
 import com.capaciti.ops.compliance.AuditService;
 import com.capaciti.ops.compliance.ComplianceService;
@@ -60,6 +61,7 @@ public class ResponseService {
     @Transactional
     public ResponseDto generate(Long ticketId, Tone tone, String body, AuthUser caller) {
         Ticket ticket = ticketService.loadVisible(ticketId, caller);
+        ensureCanReply(ticket);
         GeneratedResponse g = draft(ticket, tone, body, caller);
 
         TicketResponse r = new TicketResponse();
@@ -84,8 +86,10 @@ public class ResponseService {
             a.setStatus(ApprovalStatus.PENDING);
             approvals.save(a);
             approvalId = a.getId();
-            ticket.setStatus(TicketStatus.AWAITING_APPROVAL);
-            ticket.setUpdatedAt(Instant.now());
+            // The reply is held, but work has started: NEW/ASSIGNED moves to IN_PROGRESS first,
+            // then IN_PROGRESS to AWAITING_APPROVAL. Both steps are validated by the state machine.
+            ticketService.transition(ticket, TicketStatus.IN_PROGRESS);
+            ticketService.transition(ticket, TicketStatus.AWAITING_APPROVAL);
             users.findByRoleInAndActiveTrue(List.of(Role.MANAGER)).forEach(m -> notifications.notify(m, ticket.getId(),
                     "Approval needed: ticket #" + ticket.getId(),
                     "A " + risk.getLevel() + " risk response needs your review (" + risk.getFlags() + ")."));
@@ -140,15 +144,29 @@ public class ResponseService {
                 .toList();
     }
 
+    /**
+     * Drafting is only meaningful while work is open and no other reply is waiting for a
+     * decision. Resolved/closed tickets must be reopened, and one pending approval blocks
+     * a second draft so two managers cannot approve competing replies.
+     */
+    private void ensureCanReply(Ticket ticket) {
+        if (ticket.getStatus() == TicketStatus.RESOLVED || ticket.getStatus() == TicketStatus.CLOSED) {
+            throw new ConflictException("This ticket is " + ticket.getStatus()
+                    + "; reopen it before sending another reply");
+        }
+        if (ticket.getStatus() == TicketStatus.AWAITING_APPROVAL
+                || approvals.existsByStatusAndResponseTicketId(ApprovalStatus.PENDING, ticket.getId())) {
+            throw new ConflictException("A reply on this ticket is already awaiting manager approval");
+        }
+    }
+
     /** Called when a response becomes visible to the requester (auto or after approval). */
     public void markSent(TicketResponse r, Ticket ticket) {
         r.setStatus(ResponseStatus.APPROVED);
         if (ticket.getFirstResponseAt() == null) ticket.setFirstResponseAt(Instant.now());
-        if (ticket.getStatus() == TicketStatus.AWAITING_APPROVAL || ticket.getStatus() == TicketStatus.NEW
-                || ticket.getStatus() == TicketStatus.ASSIGNED) {
-            ticket.setStatus(TicketStatus.IN_PROGRESS);
-        }
-        ticket.setUpdatedAt(Instant.now());
+        // Valid from NEW/ASSIGNED (first reply), IN_PROGRESS (another update) and
+        // AWAITING_APPROVAL (a manager just approved the held reply).
+        ticketService.transition(ticket, TicketStatus.IN_PROGRESS);
         notifications.notify(ticket.getRequester(), ticket.getId(), "Update on ticket #" + ticket.getId(), r.getBody());
     }
 
