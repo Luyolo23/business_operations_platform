@@ -13,13 +13,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.capaciti.ops.notification.NotificationRepository;
+import com.capaciti.ops.user.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import javax.crypto.SecretKey;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +60,7 @@ class TicketFlowIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired NotificationRepository notificationRepository;
+    @Autowired UserRepository users;
 
     private static final MediaType JSON = MediaType.APPLICATION_JSON;
     private static final String JWT_SECRET = "integration-test-secret-at-least-32-bytes-long";
@@ -258,6 +266,255 @@ class TicketFlowIntegrationTest {
                 .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.resolvedAt").value(nullValue()))
                 .andExpect(jsonPath("$.requesterFeedback").value("Still showing an error"));
+    }
+
+    @Test
+    void staffStatusChangesRespectTheStateMachine() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "VPN not working",
+                "I cannot connect to the VPN from my laptop").get("id").asLong();
+        String agent = login("agent.it@ops.local");
+        String url = "/api/tickets/" + id + "/status";
+
+        // Starting work happens through a reply; closing belongs to the requester.
+        mvc.perform(patch(url).header("Authorization", agent).contentType(JSON)
+                        .content("{\"status\":\"IN_PROGRESS\"}"))
+                .andExpect(status().isConflict());
+        mvc.perform(patch(url).header("Authorization", agent).contentType(JSON)
+                        .content("{\"status\":\"CLOSED\"}"))
+                .andExpect(status().isConflict());
+        mvc.perform(patch(url).header("Authorization", agent).contentType(JSON)
+                        .content("{\"status\":\"NEW\"}"))
+                .andExpect(status().isConflict());
+
+        // Resolving still needs an answer that reached the requester.
+        mvc.perform(patch(url).header("Authorization", agent).contentType(JSON)
+                        .content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isBadRequest());
+
+        writeReply(agent, id, "Please restart the VPN client and try again.");
+        mvc.perform(patch(url).header("Authorization", agent).contentType(JSON)
+                        .content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(patch(url).header("Authorization", agent).contentType(JSON)
+                        .content("{\"status\":\"CLOSED\"}"))
+                .andExpect(status().isConflict());
+        mvc.perform(patch(url).header("Authorization", agent).contentType(JSON)
+                        .content("{\"status\":\"IN_PROGRESS\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(patch(url).header("Authorization", agent).contentType(JSON)
+                        .content("{\"status\":\"ASSIGNED\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void onlyTheRequesterCanReopenAClosedTicket() throws Exception {
+        String employee = login("employee@ops.local");
+        long id = createTicket(employee, "Printer offline", "The office printer shows an error")
+                .get("id").asLong();
+        String agent = login("agent.it@ops.local");
+        writeReply(agent, id, "Please power the printer off and on again.");
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", employee)
+                        .contentType(JSON).content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"));
+
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"IN_PROGRESS\"}"))
+                .andExpect(status().isConflict());
+
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", employee)
+                        .contentType(JSON).content("{\"confirmed\":false,\"comment\":\"It broke again\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.resolvedAt").value(nullValue()))
+                .andExpect(jsonPath("$.requesterConfirmedAt").value(nullValue()));
+    }
+
+    @Test
+    void confirmingTwiceIsIdempotentAndDoesNotRepeatNotifications() throws Exception {
+        String employee = login("employee@ops.local");
+        long employeeId = users.findByEmailIgnoreCase("employee@ops.local").orElseThrow().getId();
+        long id = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        String agent = login("agent.it@ops.local");
+        writeReply(agent, id, "A laptop has been ordered for you.");
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", employee)
+                        .contentType(JSON).content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"));
+        long afterFirst = confirmationsSentTo(employeeId);
+
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", employee)
+                        .contentType(JSON).content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"));
+
+        assertEquals(afterFirst, confirmationsSentTo(employeeId),
+                "a repeated confirmation must not notify the assignee again");
+    }
+
+    @Test
+    void draftingIsBlockedOnResolvedAndClosedTickets() throws Exception {
+        String employee = login("employee@ops.local");
+        long id = createTicket(employee, "VPN not working", "I cannot connect to the VPN from my laptop")
+                .get("id").asLong();
+        String agent = login("agent.it@ops.local");
+        writeReply(agent, id, "Please restart the VPN client and try again.");
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/tickets/" + id + "/responses").header("Authorization", agent)
+                        .contentType(JSON).content("{\"tone\":\"FORMAL\"}"))
+                .andExpect(status().isConflict());
+
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", employee)
+                        .contentType(JSON).content("{\"confirmed\":true}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/tickets/" + id + "/responses").header("Authorization", agent)
+                        .contentType(JSON).content("{\"tone\":\"FORMAL\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void aSecondReplyIsBlockedWhileAnApprovalIsPending() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "Please guarantee my refund",
+                "I was charged twice on my invoice, please refund me").get("id").asLong();
+        String agent = login("agent.finance@ops.local");
+
+        JsonNode risky = writeReply(agent, id, "We guarantee you will get your money back.");
+        assertEquals("PENDING_APPROVAL", risky.get("status").asText());
+
+        mvc.perform(post("/api/tickets/" + id + "/responses").header("Authorization", agent)
+                        .contentType(JSON).content("{\"tone\":\"FORMAL\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void aManagerCannotApproveTheirOwnResponse() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "Please guarantee my refund",
+                "I was charged twice on my invoice, please refund me").get("id").asLong();
+        String manager = login("manager@ops.local");
+
+        JsonNode risky = writeReply(manager, id, "We guarantee you will get your money back.");
+        assertEquals("PENDING_APPROVAL", risky.get("status").asText());
+        long approvalId = risky.get("approvalId").asLong();
+
+        mvc.perform(post("/api/approvals/" + approvalId + "/decision").header("Authorization", manager)
+                        .contentType(JSON).content("{\"approve\":true}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void anApprovalDecisionNeedsAnExplicitApproveFlag() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "Please guarantee my refund",
+                "I was charged twice on my invoice, please refund me").get("id").asLong();
+        long approvalId = writeReply(login("agent.finance@ops.local"), id,
+                "We guarantee you will get your money back.").get("approvalId").asLong();
+        String manager = login("manager@ops.local");
+
+        mvc.perform(post("/api/approvals/" + approvalId + "/decision").header("Authorization", manager)
+                        .contentType(JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/approvals/" + approvalId + "/decision").header("Authorization", manager)
+                        .contentType(JSON).content("{\"comment\":\"missing the flag\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void anApprovalCanOnlyBeDecidedOnce() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "Please guarantee my refund",
+                "I was charged twice on my invoice, please refund me").get("id").asLong();
+        long approvalId = writeReply(login("agent.finance@ops.local"), id,
+                "We guarantee you will get your money back.").get("approvalId").asLong();
+        String manager = login("manager@ops.local");
+
+        mvc.perform(post("/api/approvals/" + approvalId + "/decision").header("Authorization", manager)
+                        .contentType(JSON).content("{\"approve\":true}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/approvals/" + approvalId + "/decision").header("Authorization", manager)
+                        .contentType(JSON).content("{\"approve\":false}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void reclassificationReroutesToTheNewDepartment() throws Exception {
+        String employee = login("employee@ops.local");
+        JsonNode t = createTicket(employee, "VPN not working", "I cannot connect to the VPN from my laptop");
+        long id = t.get("id").asLong();
+        assertEquals("Ian IT-Agent", t.get("assigneeName").asText());
+
+        mvc.perform(patch("/api/tickets/" + id + "/classification")
+                        .header("Authorization", login("manager@ops.local"))
+                        .contentType(JSON).content("{\"category\":\"FINANCE\",\"priority\":\"MEDIUM\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category").value("FINANCE"))
+                .andExpect(jsonPath("$.assigneeName").value("Fiona Finance-Agent"));
+    }
+
+    @Test
+    void aClosedTicketCannotBeReclassified() throws Exception {
+        String employee = login("employee@ops.local");
+        long id = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        String agent = login("agent.it@ops.local");
+        writeReply(agent, id, "A laptop has been ordered for you.");
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", employee)
+                        .contentType(JSON).content("{\"confirmed\":true}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(patch("/api/tickets/" + id + "/classification")
+                        .header("Authorization", login("manager@ops.local"))
+                        .contentType(JSON).content("{\"category\":\"FINANCE\",\"priority\":\"LOW\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void twoManagersRacingOnOneApprovalProduceOneDecision() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "Please guarantee my refund",
+                "I was charged twice on my invoice, please refund me").get("id").asLong();
+        long approvalId = writeReply(login("agent.finance@ops.local"), id,
+                "We guarantee you will get your money back.").get("approvalId").asLong();
+        String manager = login("manager@ops.local");
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch go = new CountDownLatch(1);
+        Callable<Integer> decision = () -> {
+            ready.countDown();
+            go.await();
+            return mvc.perform(post("/api/approvals/" + approvalId + "/decision")
+                            .header("Authorization", manager).contentType(JSON)
+                            .content("{\"approve\":true}"))
+                    .andReturn().getResponse().getStatus();
+        };
+        Future<Integer> first = pool.submit(decision);
+        Future<Integer> second = pool.submit(decision);
+        ready.await();
+        go.countDown();
+        List<Integer> statuses = List.of(first.get(), second.get());
+        pool.shutdownNow();
+
+        assertEquals(1, statuses.stream().filter(s -> s == 200).count(),
+                "exactly one decision should win, got " + statuses);
+        assertEquals(1, statuses.stream().filter(s -> s == 409).count(),
+                "the losing decision should be a conflict, got " + statuses);
+    }
+
+    private long confirmationsSentTo(long userId) {
+        return notificationRepository.findTop50ByUserIdOrderByCreatedAtDesc(userId).stream()
+                .filter(n -> n.getSubject().contains("Requester confirmed"))
+                .count();
     }
 
     @Test
