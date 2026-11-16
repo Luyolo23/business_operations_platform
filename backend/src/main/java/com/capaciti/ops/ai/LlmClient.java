@@ -3,6 +3,7 @@ package com.capaciti.ops.ai;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,6 +21,9 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "llm")
 public class LlmClient {
+
+    /** A hostile or broken provider must not be able to make us buffer an unbounded response. */
+    private static final int MAX_RESPONSE_BYTES = 1_000_000;
 
     private final AiProperties props;
     private final ObjectMapper mapper;
@@ -53,11 +57,19 @@ public class LlmClient {
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                 .build();
 
-        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
         if (response.statusCode() / 100 != 2) {
+            response.body().close();
             throw new IOException("LLM call failed with HTTP " + response.statusCode());
         }
-        JsonNode root = mapper.readTree(response.body());
+        byte[] bytes;
+        try (InputStream in = response.body()) {
+            bytes = in.readNBytes(MAX_RESPONSE_BYTES + 1);
+        }
+        if (bytes.length > MAX_RESPONSE_BYTES) {
+            throw new IOException("LLM response exceeded " + MAX_RESPONSE_BYTES + " bytes");
+        }
+        JsonNode root = mapper.readTree(bytes);
         return root.path("choices").path(0).path("message").path("content").asText();
     }
 }
