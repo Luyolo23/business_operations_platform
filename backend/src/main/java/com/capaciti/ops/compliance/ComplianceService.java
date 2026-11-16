@@ -14,8 +14,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -64,11 +64,23 @@ public class ComplianceService {
 
     @Transactional(readOnly = true)
     public Overview overview(int days) {
-        Instant since = Instant.now().minus(days, ChronoUnit.DAYS);
+        return overview(since(days));
+    }
+
+    /** Clamp the caller-supplied window so 0/negative/huge values cannot produce bad SQL or overflow. */
+    private static Instant since(int days) {
+        int window = Math.min(Math.max(days, 1), 365);
+        return Instant.now().minus(window, ChronoUnit.DAYS);
+    }
+
+    private Overview overview(Instant since) {
         List<Ticket> recent = tickets.findByCreatedAtAfter(since);   // bootcamp scale; move to SQL aggregates if needed
 
         Map<RiskLevel, Long> byLevel = new EnumMap<>(RiskLevel.class);
-        for (RiskLevel l : RiskLevel.values()) byLevel.put(l, assessments.countByLevel(l));
+        for (RiskLevel l : RiskLevel.values()) byLevel.put(l, 0L);
+        for (RiskAssessment a : assessments.findByCreatedAtAfter(since)) {
+            byLevel.merge(a.getLevel(), 1L, Long::sum);
+        }
 
         Map<Category, List<Ticket>> byCategory = recent.stream().collect(Collectors.groupingBy(Ticket::getCategory));
         Map<Category, Double> confidence = new EnumMap<>(Category.class);
@@ -84,16 +96,22 @@ public class ComplianceService {
         long manual = recent.stream().filter(t -> "MANUAL".equals(t.getClassificationSource())).count();
         double manualRate = recent.isEmpty() ? 0 : Math.round(1000.0 * manual / recent.size()) / 1000.0;
 
+        // Pending approvals are a current backlog, so they are not period-filtered. Decisions
+        // are counted by when they were made, so the window matches the rest of the report.
         return new Overview(byLevel, approvals.countByStatus(ApprovalStatus.PENDING),
-                approvals.countByStatus(ApprovalStatus.APPROVED), approvals.countByStatus(ApprovalStatus.REJECTED),
+                approvals.countByStatusAndDecidedAtAfter(ApprovalStatus.APPROVED, since),
+                approvals.countByStatusAndDecidedAtAfter(ApprovalStatus.REJECTED, since),
                 confidence, manualRate, firstResponse, recent.size());
     }
 
     @Transactional(readOnly = true)
     public RiskReport report(int days) {
-        Overview o = overview(days);
-        List<FlaggedItem> flagged = assessments
-                .findTop20ByLevelInOrderByCreatedAtDesc(List.of(RiskLevel.MEDIUM, RiskLevel.HIGH)).stream()
+        Instant since = since(days);
+        Overview o = overview(since);
+        List<FlaggedItem> flagged = assessments.findByCreatedAtAfter(since).stream()
+                .filter(a -> a.getLevel() == RiskLevel.MEDIUM || a.getLevel() == RiskLevel.HIGH)
+                .sorted(Comparator.comparing(RiskAssessment::getCreatedAt).reversed())
+                .limit(20)
                 .map(a -> new FlaggedItem(a.getId(), a.getResponse().getId(), a.getResponse().getTicket().getId(),
                         a.getLevel(), a.getFlags() == null || a.getFlags().isBlank() ? List.of()
                         : Arrays.asList(a.getFlags().split(",")), a.getNotes(), a.getCreatedAt()))

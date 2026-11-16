@@ -29,8 +29,16 @@ public class ForecastService {
 
     @Transactional(readOnly = true)
     public Forecast forecast(int horizonDays) {
+        return forecast(horizonDays, null);
+    }
+
+    /** When a department is supplied, the entire forecast (history, trend and projections) uses only its tickets. */
+    @Transactional(readOnly = true)
+    public Forecast forecast(int horizonDays, Category department) {
         int horizon = Math.min(Math.max(horizonDays, 1), 30);
-        List<Ticket> history = tickets.findByCreatedAtAfter(Instant.now().minus(HISTORY_DAYS, ChronoUnit.DAYS));
+        Instant historySince = Instant.now().minus(HISTORY_DAYS, ChronoUnit.DAYS);
+        List<Ticket> history = department == null ? tickets.findByCreatedAtAfter(historySince)
+                : tickets.findByCreatedAtAfterAndCategory(historySince, department);
         List<DailyCount> daily = AnalyticsService.dailyVolume(history, HISTORY_DAYS);
 
         double[] y = daily.stream().mapToDouble(DailyCount::count).toArray();

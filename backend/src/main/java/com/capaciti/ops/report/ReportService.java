@@ -32,7 +32,7 @@ public class ReportService {
     public WeeklyReport weekly(Category department) {
         Summary summary = analytics.summary(7, department);
         List<String> insights = InsightService.describe(summary);
-        Forecast forecast = forecastService.forecast(7);
+        Forecast forecast = forecastService.forecast(7, department);
         String facts = String.join(" ", insights) + " Forecast: " + forecast.message();
         String title = "Weekly Business Report" + (department == null ? "" : " - " + department);
         return new WeeklyReport(Instant.now(), department, title, narrator.narrate(facts), insights, summary, forecast);

@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.capaciti.ops.compliance.AuditLog;
 import com.capaciti.ops.compliance.AuditLogRepository;
+import com.capaciti.ops.compliance.RiskAssessmentRepository;
 import com.capaciti.ops.notification.NotificationRepository;
 import com.capaciti.ops.user.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,6 +23,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +41,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -65,6 +70,8 @@ class TicketFlowIntegrationTest {
     @Autowired NotificationRepository notificationRepository;
     @Autowired UserRepository users;
     @Autowired AuditLogRepository auditLogs;
+    @Autowired RiskAssessmentRepository riskAssessments;
+    @Autowired JdbcTemplate jdbc;
 
     private static final MediaType JSON = MediaType.APPLICATION_JSON;
     private static final String JWT_SECRET = "integration-test-secret-at-least-32-bytes-long";
@@ -818,6 +825,129 @@ class TicketFlowIntegrationTest {
                 .signWith(key).compact();
         mvc.perform(get("/api/tickets").header("Authorization", "Bearer " + noRole))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void complianceRiskMetricsAndFlaggedItemsRespectTheRequestedPeriod() throws Exception {
+        String manager = login("manager@ops.local");
+        String employee = login("employee@ops.local");
+        String agent = login("agent.it@ops.local");
+        riskAssessments.deleteAll();   // isolate this test from risk data created by other tests
+
+        long recent = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        long old = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        writeReply(agent, recent, "We guarantee this will be fixed tomorrow.");
+        writeReply(agent, old, "We guarantee this will be fixed tomorrow.");
+        backdateRiskAssessment(old, 60);
+
+        mvc.perform(get("/api/compliance/overview").param("days", "30").header("Authorization", manager))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.responsesByRiskLevel.MEDIUM").value(1))
+                .andExpect(jsonPath("$.responsesByRiskLevel.HIGH").value(0));
+
+        mvc.perform(get("/api/compliance/report").param("days", "30").header("Authorization", manager))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.overview.responsesByRiskLevel.MEDIUM").value(1))
+                .andExpect(jsonPath("$.recentFlagged.length()").value(1))
+                .andExpect(jsonPath("$.recentFlagged[0].ticketId").value(recent));
+    }
+
+    @Test
+    void compliancePeriodIsClampedToASafeWindow() throws Exception {
+        String manager = login("manager@ops.local");
+        String employee = login("employee@ops.local");
+        String agent = login("agent.it@ops.local");
+        riskAssessments.deleteAll();
+
+        long recent = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        long twoHundred = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        long fourHundred = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        writeReply(agent, recent, "We guarantee this will be fixed tomorrow.");
+        writeReply(agent, twoHundred, "We guarantee this will be fixed tomorrow.");
+        writeReply(agent, fourHundred, "We guarantee this will be fixed tomorrow.");
+        backdateRiskAssessment(twoHundred, 200);
+        backdateRiskAssessment(fourHundred, 400);
+
+        // 0 and negative windows are treated as one day, not "since right now" or a future date.
+        mvc.perform(get("/api/compliance/overview").param("days", "0").header("Authorization", manager))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.responsesByRiskLevel.MEDIUM").value(1));
+        mvc.perform(get("/api/compliance/overview").param("days", "-1").header("Authorization", manager))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.responsesByRiskLevel.MEDIUM").value(1));
+
+        // Oversized windows are capped at a year: the 200-day item is included, the 400-day item is not.
+        mvc.perform(get("/api/compliance/overview").param("days", "9999").header("Authorization", manager))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.responsesByRiskLevel.MEDIUM").value(2));
+    }
+
+    @Test
+    void complianceApprovalCountsRespectTheRequestedPeriod() throws Exception {
+        String manager = login("manager@ops.local");
+        String employee = login("employee@ops.local");
+        String agent = login("agent.it@ops.local");
+
+        long baseline = json.readTree(mvc.perform(get("/api/compliance/overview")
+                        .param("days", "30").header("Authorization", manager))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .get("approved").asLong();
+
+        long recentTicket = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        long oldTicket = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        long recentApproval = writeReply(agent, recentTicket, "We guarantee this will be fixed tomorrow.")
+                .get("approvalId").asLong();
+        long oldApproval = writeReply(agent, oldTicket, "We guarantee this will be fixed tomorrow.")
+                .get("approvalId").asLong();
+
+        for (long id : List.of(recentApproval, oldApproval)) {
+            mvc.perform(post("/api/approvals/" + id + "/decision").header("Authorization", manager)
+                            .contentType(JSON).content("{\"approve\":true}"))
+                    .andExpect(status().isOk());
+        }
+        jdbc.update("update approvals set decided_at = ? where id = ?",
+                Timestamp.from(Instant.now().minus(60, ChronoUnit.DAYS)), oldApproval);
+
+        mvc.perform(get("/api/compliance/overview").param("days", "30").header("Authorization", manager))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.approved").value(baseline + 1));
+    }
+
+    @Test
+    void departmentReportUsesADepartmentScopedForecast() throws Exception {
+        String employee = login("employee@ops.local");
+        String manager = login("manager@ops.local");
+        createTicket(employee, "VPN not working", "I cannot connect to the VPN from my laptop");
+        createTicket(employee, "Annual leave question", "How do I check my annual leave balance?");
+
+        JsonNode global = json.readTree(mvc.perform(get("/api/forecast").param("horizonDays", "7")
+                        .header("Authorization", manager))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        JsonNode report = json.readTree(mvc.perform(get("/api/reports/weekly").param("department", "IT")
+                        .header("Authorization", manager))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+
+        long globalHistory = totalHistory(global);
+        long itHistory = totalHistory(report.get("forecast"));
+        assertTrue(itHistory > 0, "the IT report should contain IT history");
+        assertTrue(itHistory < globalHistory,
+                "an IT report must not use the company-wide forecast (" + itHistory + " vs " + globalHistory + ")");
+    }
+
+    private void backdateRiskAssessment(long ticketId, int days) {
+        Long assessmentId = jdbc.queryForObject("""
+                select ra.id from risk_assessments ra
+                join ticket_responses tr on tr.id = ra.response_id
+                where tr.ticket_id = ?
+                """, Long.class, ticketId);
+        jdbc.update("update risk_assessments set created_at = ? where id = ?",
+                Timestamp.from(Instant.now().minus(days, ChronoUnit.DAYS)), assessmentId);
+    }
+
+    private static long totalHistory(JsonNode forecast) {
+        long total = 0;
+        for (JsonNode day : forecast.get("history")) total += day.get("count").asLong();
+        return total;
     }
 
     @Test
