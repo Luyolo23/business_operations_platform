@@ -28,6 +28,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authApi.me().then(setUser).catch(() => tokenStore.clear()).finally(() => setLoading(false));
   }, [logout]);
 
+  // The token lives in localStorage, which every tab shares. If another tab
+  // signs in as (or out of) a different account, or this page is restored from
+  // the back/forward cache, this tab keeps the old `user` while its requests
+  // carry the new token. That made the UI offer actions the current token is
+  // not allowed to perform, such as the requester's resolution buttons for an
+  // agent. Re-read the identity whenever the token or page state can change.
+  useEffect(() => {
+    let cancelled = false;
+
+    const sync = () => {
+      if (!tokenStore.get()) {
+        if (!cancelled) setUser(null);
+        return;
+      }
+      authApi.me()
+        .then((u) => { if (!cancelled) setUser(u); })
+        .catch(() => {
+          tokenStore.clear();
+          if (!cancelled) setUser(null);
+        });
+    };
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || e.key === tokenStore.key) sync();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') sync();
+    };
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) sync();
+    };
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('pageshow', onPageShow);
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('pageshow', onPageShow);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
   const accept = (r: AuthResponse) => { tokenStore.set(r.token); setUser(r.user); };
 
   const value = useMemo<AuthState>(() => ({
