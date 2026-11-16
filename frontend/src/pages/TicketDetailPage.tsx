@@ -87,6 +87,7 @@ export default function TicketDetailPage() {
                   Yes, it’s solved
                 </button>
                 <button className="btn btn-line btn-danger" disabled={busy}
+                  style={{ color: '#fff' }}
                   onClick={() => run(() => ticketApi.confirmResolution(id, false, resolutionNote),
                     'Reopened — the team has been notified.')}>
                   No, still a problem
