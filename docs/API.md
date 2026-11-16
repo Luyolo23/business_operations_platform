@@ -3,7 +3,8 @@
 Base URL (local dev): `http://localhost:8080`  
 All endpoints except Auth, `/api/config` and the Swagger UI require
 `Authorization: Bearer <token>`.  
-Full interactive docs: **http://localhost:8080/swagger-ui.html**
+Full interactive docs: **http://localhost:8080/swagger-ui.html** (available only
+with the `dev` profile; production keeps Swagger and `/v3/api-docs` disabled).
 
 ---
 

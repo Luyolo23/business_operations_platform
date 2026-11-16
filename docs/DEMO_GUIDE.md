@@ -18,7 +18,7 @@ make db          # psql shell         (terminal 3, optional)
 | URL | What's there |
 |---|---|
 | http://localhost:5173 | React frontend (dev) |
-| http://localhost:8080/swagger-ui.html | Interactive API |
+| http://localhost:8080/swagger-ui.html | Interactive API (dev profile only) |
 | http://localhost:8080/actuator/health | Health check |
 | `localhost:5433` | Postgres (db `opsdb`, user `ops`, password `ops`) |
 

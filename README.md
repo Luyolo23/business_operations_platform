@@ -46,7 +46,7 @@ Once started:
 
 | URL | Purpose |
 |-----|---------|
-| http://localhost:8080/swagger-ui.html | Interactive API explorer |
+| http://localhost:8080/swagger-ui.html | Interactive API explorer (dev profile only) |
 | http://localhost:8080/actuator/health | Health check |
 
 > **Note:** The dev Postgres instance listens on **`localhost:5433`** (mapped from container port 5432).  
@@ -90,7 +90,11 @@ make full
 | URL | What's there |
 |-----|-------------|
 | http://localhost:8081 | React frontend (via Nginx) |
-| http://localhost:8080 | Backend API / Swagger UI |
+| http://localhost:8080 | Backend API and health; Swagger only when `SPRING_PROFILES_ACTIVE=dev` |
+
+The first run refuses to start until `JWT_SECRET` in `.env` is set to a real
+value of at least 32 bytes. Postgres and the backend are bound to `127.0.0.1`;
+only the frontend is reachable from other machines by default.
 
 ---
 
@@ -198,14 +202,17 @@ The compose file injects `AI_API_KEY` from your `.env` into the container at run
 
 ### GitHub Actions / CI
 
-1. Go to **Settings → Secrets and variables → Actions** in your repo.
-2. Add `AI_API_KEY` as a repository secret.
-3. In your workflow file:
+`.github/workflows/ci.yml` runs four jobs on every push and pull request:
 
-```yaml
-env:
-  AI_API_KEY: ${{ secrets.AI_API_KEY }}
-```
+| Job | What it checks |
+|-----|----------------|
+| Backend unit tests | `mvn -B test -DexcludedGroups=integration` |
+| Backend integration tests | `mvn -B test -Dgroups=integration` against Testcontainers Postgres |
+| Frontend build | `npm ci && npm run build` (typecheck + production bundle) |
+| Docker images | Builds both images, asserts they run non-root, and checks the frontend security headers |
+
+To use the LLM provider in your own workflows, add `AI_API_KEY` as a repository
+secret (the CI suite itself uses the deterministic `mock` provider).
 
 ### Without an API key
 

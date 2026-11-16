@@ -103,7 +103,7 @@ BiasChecker / ComplianceService  →  risk level (NONE | LOW | MEDIUM | HIGH)
 
 ## Security Model
 
-- All endpoints (except `/api/auth/*`, `/api/config`, `/actuator/health`, Swagger) require a JWT **Bearer** token.
+- All endpoints (except `/api/auth/*`, `/api/config` and `/actuator/health`) require a JWT **Bearer** token. Swagger/OpenAPI is public only when `app.api-docs.enabled=true`, which the `dev` profile sets; the default profile keeps it dark.
 - Tokens are signed with HMAC-SHA256 using `JWT_SECRET`, expire in 8 hours. The app fails fast at startup if `JWT_SECRET` is missing or shorter than 32 bytes; the `dev` profile supplies a local-only default.
 - `GET /api/config` exposes only `{demoMode}` so the login page can decide whether to show demo credentials. `demoMode` is backed by `app.demo.show-accounts` (false by default, true in `dev`).
 - Roles: `EMPLOYEE < AGENT < MANAGER < ADMIN` (enforced in `SecurityConfig`).

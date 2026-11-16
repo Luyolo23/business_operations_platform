@@ -83,12 +83,20 @@ Workflow: `.github/workflows/ci.yml`. It runs on pushes to `main`, `master` and
 | Job | What it runs |
 |-----|--------------|
 | `Backend unit tests` | `cd backend && mvn -B test -DexcludedGroups=integration` |
+| `Backend integration tests` | `cd backend && mvn -B test -Dgroups=integration` (Testcontainers) |
 | `Frontend build` | Node 22, `cd frontend && npm ci && npm run build` |
+| `Docker images` | Builds both images, checks they run non-root, and verifies the Nginx security headers |
 
-Not yet in CI (tracked for later hardening): the Testcontainers integration suite,
-frontend tests, a Docker image build and linting. Run them locally before merging:
+The workflow uses `contents: read`, cancels superseded runs on the same ref, and
+uploads Surefire reports when backend tests fail. Dependabot checks Maven, npm,
+GitHub Actions and Docker updates weekly (`.github/dependabot.yml`).
+
+Still run locally before merging (not automated): frontend component tests and
+linting. There is currently no frontend test runner or ESLint config.
 
 | Check | Command |
 |-------|---------|
 | Integration tests | `cd backend && mvn test -Dgroups=integration` (Docker required) |
 | Full stack smoke test | `docker compose -f docker-compose.full.yml up --build` |
+
+Production defaults to no Swagger/OpenAPI; the `dev` profile enables it.

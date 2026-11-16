@@ -14,6 +14,9 @@ Items from the earlier code review that are not correctness blockers.
 
 ## Done
 
-- CI workflow (`.github/workflows/ci.yml`) runs backend unit tests and the
-  frontend production build on every push/PR.
+- CI workflow (`.github/workflows/ci.yml`) runs backend unit tests, the
+  Testcontainers integration suite, the frontend production build, and a Docker
+  image build that asserts both containers run non-root and the frontend sends
+  security headers.
 - Live Groq tests are tagged `live` and run explicitly via `make live`.
+- Dependabot monitors Maven, npm, GitHub Actions and Docker images weekly.
