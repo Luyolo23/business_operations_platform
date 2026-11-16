@@ -1,12 +1,27 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { notificationApi } from '../api/endpoints';
 import { useAsync } from '../components/useAsync';
+import { notifyNotificationsChanged } from '../components/events';
 import { Empty, Status } from '../components/ui';
 import { timeAgo } from '../theme';
 
 export default function NotificationsPage() {
   const { data, loading, error, reload } = useAsync(() => notificationApi.list(), []);
+  const [marking, setMarking] = useState<number | null>(null);
   const unread = (data ?? []).filter((n) => !n.read).length;
+
+  function markRead(id: number) {
+    setMarking(id);
+    notificationApi.read(id)
+      .then(() => {
+        reload();
+        notifyNotificationsChanged();   // keep the header badge in step
+      })
+      .catch(() => { /* the list still shows it as unread, so the user can retry */ })
+      .finally(() => setMarking(null));
+  }
+
   return (
     <>
       <div className="hero">
@@ -24,7 +39,11 @@ export default function NotificationsPage() {
               </div>
               <div className="row" style={{ alignItems: 'center' }}>
                 <span className="muted">{timeAgo(n.createdAt)}</span>
-                {!n.read && <button className="btn btn-line" onClick={() => notificationApi.read(n.id).then(reload)}>Mark as read</button>}
+                {!n.read && (
+                  <button className="btn btn-line" disabled={marking === n.id} onClick={() => markRead(n.id)}>
+                    {marking === n.id ? 'Marking…' : 'Mark as read'}
+                  </button>
+                )}
               </div>
             </div>
           </li>

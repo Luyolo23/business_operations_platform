@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { notificationApi } from '../api/endpoints';
+import { NOTIFICATIONS_CHANGED } from './events';
 
 export default function Layout() {
   const { user, logout, isManager, isAdmin } = useAuth();
@@ -11,7 +12,13 @@ export default function Layout() {
     const load = () => notificationApi.list().then((l) => setUnread(l.filter((n) => !n.read).length)).catch(() => {});
     load();
     const id = setInterval(load, 30000);
-    return () => clearInterval(id);
+    // Marking a notification as read updates the badge immediately instead of
+    // waiting up to 30 seconds for the next poll.
+    window.addEventListener(NOTIFICATIONS_CHANGED, load);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener(NOTIFICATIONS_CHANGED, load);
+    };
   }, []);
 
   const initials = (user?.fullName ?? '?').split(' ').map((p) => p[0]).slice(0, 2).join('');

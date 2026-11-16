@@ -32,6 +32,7 @@ export const RISK_COLOR: Record<RiskLevel, string> = {
 // Plain-language versions of the backend's risk flag codes.
 export const FLAG_LABEL: Record<string, string> = {
   PII_LONG_NUMBER: 'contains a long number that could be personal data',
+  PII_GROUPED_NUMBER: 'contains a grouped number that could be personal data',
   DISCRIMINATORY_LANGUAGE: 'generalises about a group of people',
   ABSOLUTE_PROMISE: 'makes a promise the team may not be able to keep',
   LEGAL_CLAIM: 'uses legal wording',

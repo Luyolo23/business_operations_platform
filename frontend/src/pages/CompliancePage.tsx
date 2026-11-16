@@ -7,7 +7,8 @@ import { Bars, Panel, RiskMark, Stats, Status, fmtDate } from '../components/ui'
 import { DEPT_LABEL, DEPT_VAR, flagText } from '../theme';
 
 export default function CompliancePage() {
-  const report = useAsync(() => complianceApi.report(30), []);
+  const [days, setDays] = useState(30);
+  const report = useAsync(() => complianceApi.report(days), [days]);
   const [page, setPage] = useState(0);
   const audit = useAsync(() => complianceApi.audit(page, 15), [page]);
   const o = report.data?.overview;
@@ -18,6 +19,14 @@ export default function CompliancePage() {
         <h1>Is the assistant behaving?</h1>
         {report.data && <p className="lede">{report.data.observations.join(' ')}</p>}
       </div>
+
+      <div className="filters">
+        <select aria-label="Period" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <option value={7}>Last 7 days</option><option value={30}>Last 30 days</option>
+          <option value={90}>Last 90 days</option>
+        </select>
+      </div>
+
       <Status loading={report.loading} error={report.error} />
 
       <Panel title="What this page measures">
@@ -35,7 +44,7 @@ export default function CompliancePage() {
           <Stats items={[
             { value: o.responsesByRiskLevel.HIGH ?? 0, label: 'replies held back as high risk' },
             { value: o.responsesByRiskLevel.MEDIUM ?? 0, label: 'replies that needed a look' },
-            { value: o.pendingApprovals, label: `waiting for approval (${o.approved} approved, ${o.rejected} rejected)` },
+            { value: o.pendingApprovals, label: `waiting for approval (${o.approved} approved, ${o.rejected} rejected in this period)` },
             { value: `${Math.round(o.manualOverrideRate * 100)}%`, label: 'of routing corrected by staff' },
           ]} />
 

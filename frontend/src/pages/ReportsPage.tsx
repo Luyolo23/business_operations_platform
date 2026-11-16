@@ -9,14 +9,19 @@ import { DEPT_LABEL } from '../theme';
 export default function ReportsPage() {
   const [department, setDepartment] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const { data, loading, error } = useAsync(() => reportApi.weekly(department || undefined), [department]);
 
   async function pdf() {
+    if (downloading) return;
     setErr(null);
+    setDownloading(true);
     try {
       await downloadFile(reportApi.pdfPath(department || undefined), `weekly-report-${department.toLowerCase() || 'all'}.pdf`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'The PDF could not be downloaded.');
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -34,7 +39,9 @@ export default function ReportsPage() {
             <button key={c} className="pill-btn" aria-pressed={department === c} onClick={() => setDepartment(c)}>{DEPT_LABEL[c]}</button>
           ))}
         </div>
-        <button className="btn" onClick={pdf}>Download PDF</button>
+        <button className="btn" onClick={pdf} disabled={downloading}>
+          {downloading ? 'Preparing PDF…' : 'Download PDF'}
+        </button>
       </div>
       {err && <Notice tone="warn">{err}</Notice>}
       <Status loading={loading} error={error} />

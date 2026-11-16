@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { approvalApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
@@ -10,8 +10,15 @@ export default function ApprovalsPage() {
   const { data, loading, error, reload } = useAsync(() => approvalApi.list('PENDING'), []);
   const [comments, setComments] = useState<Record<number, string>>({});
   const [result, setResult] = useState<{ tone: 'good' | 'warn'; text: string } | null>(null);
+  const [deciding, setDeciding] = useState<number | null>(null);
+  const inFlight = useRef(false);
 
   async function decide(id: number, approve: boolean) {
+    // A fast double click (or approving and rejecting the same card) would
+    // otherwise send two decisions and race the version check.
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setDeciding(id);
     setResult(null);
     try {
       await approvalApi.decide(id, approve, comments[id] ?? '');
@@ -19,6 +26,9 @@ export default function ApprovalsPage() {
       reload();
     } catch (e) {
       setResult({ tone: 'warn', text: e instanceof ApiError ? e.message : 'That did not go through. Try again.' });
+    } finally {
+      inFlight.current = false;
+      setDeciding(null);
     }
   }
 
@@ -40,8 +50,12 @@ export default function ApprovalsPage() {
           <div className="row" style={{ marginTop: 18 }}>
             <div className="grow"><label htmlFor={`c${a.id}`}>Note for the agent <span className="hint">(optional)</span></label>
               <input id={`c${a.id}`} value={comments[a.id] ?? ''} onChange={(e) => setComments({ ...comments, [a.id]: e.target.value })} /></div>
-            <button className="btn" onClick={() => decide(a.id, true)}>Approve and send</button>
-            <button className="btn btn-danger" onClick={() => decide(a.id, false)}>Reject reply</button>
+            <button className="btn" disabled={deciding !== null} onClick={() => decide(a.id, true)}>
+              {deciding === a.id ? 'Sending…' : 'Approve and send'}
+            </button>
+            <button className="btn btn-danger" disabled={deciding !== null} onClick={() => decide(a.id, false)}>
+              Reject reply
+            </button>
           </div>
         </Panel>
       ))}

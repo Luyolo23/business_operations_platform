@@ -2,11 +2,11 @@ import { useState, type CSSProperties } from 'react';
 import { useParams } from 'react-router-dom';
 import { ticketApi, userApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
-import { CATEGORIES, PRIORITIES, STATUSES, TONES, type Category, type Priority, type Tone, type TicketStatus, type User } from '../api/types';
+import { CATEGORIES, PRIORITIES, TONES, type Category, type Priority, type Tone, type User } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useAsync } from '../components/useAsync';
 import { Dept, Notice, Panel, PriorityMark, RiskMark, Status, StatusMark, fmtDate } from '../components/ui';
-import { DEPT_LABEL, PRIORITY_LABEL, RISK_COLOR, STATUS_LABEL, flagText } from '../theme';
+import { DEPT_LABEL, PRIORITY_LABEL, RISK_COLOR, flagText } from '../theme';
 
 const TONE_LABEL: Record<Tone, string> = { FORMAL: 'Formal', FRIENDLY: 'Friendly', URGENT: 'Urgent' };
 
@@ -42,6 +42,9 @@ export default function TicketDetailPage() {
 
   const t = ticket.data;
   const isRequester = !!user && !!t && t.requesterId === user.id;
+  // Replies are refused on resolved/closed tickets and while another reply waits for a manager.
+  const canReply = !!t && t.status !== 'RESOLVED' && t.status !== 'CLOSED'
+    && t.status !== 'AWAITING_APPROVAL';
   const steps = t ? [
     { name: 'Received', when: t.createdAt, done: true },
     { name: t.assigneeName ? `Assigned to ${t.assigneeName}` : 'Assigned', when: null as string | null, done: t.assigneeId != null },
@@ -103,7 +106,7 @@ export default function TicketDetailPage() {
             <div>
               <p className="prose">{t.description}</p>
 
-              {isStaff && (
+              {isStaff && canReply && (
                 <div style={{ marginTop: 40 }}>
                   <Panel title="Write a reply yourself">
                     <p className="muted" style={{ marginBottom: 16 }}>
@@ -135,7 +138,7 @@ export default function TicketDetailPage() {
               )}
 
               <div style={{ marginTop: 40 }}>
-                <Panel title="Replies" aside={isStaff && (
+                <Panel title="Replies" aside={isStaff && canReply && (
                   <div className="row">
                     <div><label htmlFor="tone">Tone</label>
                       <select id="tone" value={tone} onChange={(e) => setTone(e.target.value as Tone)}>
@@ -144,6 +147,15 @@ export default function TicketDetailPage() {
                   </div>
                 )}>
                   <Status loading={responses.loading} error={responses.error} />
+                  {isStaff && !canReply && (
+                    <p className="muted" style={{ marginBottom: 12 }}>
+                      {t.status === 'AWAITING_APPROVAL'
+                        ? 'A reply is waiting for a manager’s decision. You can reply again once it has been approved or rejected.'
+                        : t.status === 'CLOSED'
+                          ? 'This request was closed by the requester; only they can reopen it.'
+                          : 'Reopen this request before sending another reply.'}
+                    </p>
+                  )}
                   {responses.data?.length === 0 && (
                     <p className="muted">{isStaff ? 'No replies yet. Draft one and the assistant will check it before it is sent.' : 'No replies yet. You’ll get an update as soon as the team responds.'}</p>
                   )}
@@ -193,34 +205,46 @@ export default function TicketDetailPage() {
               {isStaff && (
                 <section>
                   <h2>Update this ticket</h2>
-                  <div className="field"><label htmlFor="st">Status</label>
-                    <select id="st" value={t.status} disabled={busy} onChange={(e) => run(() => ticketApi.setStatus(id, e.target.value as TicketStatus), 'Status updated.')}>
-                      {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}</select></div>
-                  {t.status !== 'RESOLVED' && t.status !== 'CLOSED' && (
-                    t.firstResponseAt
-                      ? <button className="btn btn-line" disabled={busy}
+                  {t.status === 'CLOSED' ? (
+                    <p className="muted">The requester has closed this request. Only they can reopen it.</p>
+                  ) : (
+                    <>
+                      {t.status === 'RESOLVED' ? (
+                        <button className="btn btn-line" disabled={busy}
+                          onClick={() => run(() => ticketApi.setStatus(id, 'IN_PROGRESS'), 'Ticket reopened.')}>
+                          Reopen request
+                        </button>
+                      ) : t.status === 'IN_PROGRESS' && t.firstResponseAt ? (
+                        <button className="btn btn-line" disabled={busy}
                           onClick={() => run(() => ticketApi.setStatus(id, 'RESOLVED'), 'Ticket marked resolved.')}>
                           Mark resolved
                         </button>
-                      : <p className="muted">A reply must reach the requester before this ticket can be resolved or closed.</p>
+                      ) : (
+                        <p className="muted">
+                          {t.status === 'AWAITING_APPROVAL'
+                            ? 'A manager is reviewing the held reply. The request moves forward after their decision.'
+                            : 'Send a reply to start work. A request can be resolved once the requester has received a reply.'}
+                        </p>
+                      )}
+                      {isManager && (
+                        <div className="field"><label htmlFor="as">Assign to</label>
+                          <select id="as" value={t.assigneeId ?? ''} disabled={busy}
+                            onChange={(e) => e.target.value && run(() => ticketApi.assign(id, Number(e.target.value)), 'Ticket assigned.')}>
+                            <option value="">Choose a person</option>
+                            {(staff.data ?? []).map((u) => <option key={u.id} value={u.id}>{u.fullName}</option>)}</select></div>
+                      )}
+                      <div className="field"><label htmlFor="ct">Team</label>
+                        <select id="ct" value={cat || t.category} onChange={(e) => setCat(e.target.value as Category)}>
+                          {CATEGORIES.map((c) => <option key={c} value={c}>{DEPT_LABEL[c]}</option>)}</select></div>
+                      <div className="field"><label htmlFor="pr">Priority</label>
+                        <select id="pr" value={pri || t.priority} onChange={(e) => setPri(e.target.value as Priority)}>
+                          {PRIORITIES.map((c) => <option key={c} value={c}>{PRIORITY_LABEL[c]}</option>)}</select></div>
+                      <button className="btn btn-line" disabled={busy}
+                        onClick={() => run(() => ticketApi.reclassify(id, (cat || t.category) as Category, (pri || t.priority) as Priority), 'Routing corrected.')}>
+                        Correct routing
+                      </button>
+                    </>
                   )}
-                  {isManager && (
-                    <div className="field"><label htmlFor="as">Assign to</label>
-                      <select id="as" value={t.assigneeId ?? ''} disabled={busy}
-                        onChange={(e) => e.target.value && run(() => ticketApi.assign(id, Number(e.target.value)), 'Ticket assigned.')}>
-                        <option value="">Choose a person</option>
-                        {(staff.data ?? []).map((u) => <option key={u.id} value={u.id}>{u.fullName}</option>)}</select></div>
-                  )}
-                  <div className="field"><label htmlFor="ct">Team</label>
-                    <select id="ct" value={cat || t.category} onChange={(e) => setCat(e.target.value as Category)}>
-                      {CATEGORIES.map((c) => <option key={c} value={c}>{DEPT_LABEL[c]}</option>)}</select></div>
-                  <div className="field"><label htmlFor="pr">Priority</label>
-                    <select id="pr" value={pri || t.priority} onChange={(e) => setPri(e.target.value as Priority)}>
-                      {PRIORITIES.map((c) => <option key={c} value={c}>{PRIORITY_LABEL[c]}</option>)}</select></div>
-                  <button className="btn btn-line" disabled={busy}
-                    onClick={() => run(() => ticketApi.reclassify(id, (cat || t.category) as Category, (pri || t.priority) as Priority), 'Routing corrected.')}>
-                    Correct routing
-                  </button>
                 </section>
               )}
             </aside>

@@ -56,8 +56,12 @@ export async function downloadFile(path: string, filename: string): Promise<void
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  // Revoking straight away can cancel the download in some browsers, so give it a minute.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function qs(params: Record<string, string | number | undefined | null>): string {
