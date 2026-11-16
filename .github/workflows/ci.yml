@@ -5,10 +5,20 @@ on:
     branches: [main, master, "features/**"]
   pull_request:
 
+# Least privilege: every job only needs to read the repository.
+permissions:
+  contents: read
+
+# A newer push to the same branch makes the previous run obsolete.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Backend unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend
@@ -21,10 +31,42 @@ jobs:
           cache: maven
       - name: Run unit tests (integration excluded)
         run: mvn -B test -DexcludedGroups=integration
+      - name: Upload surefire reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-unit-reports
+          path: backend/target/surefire-reports/
+          if-no-files-found: ignore
+
+  integration:
+    name: Backend integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Run Testcontainers integration tests
+        run: mvn -B test -Dgroups=integration
+      - name: Upload surefire reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-reports
+          path: backend/target/surefire-reports/
+          if-no-files-found: ignore
 
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -37,3 +79,41 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t ops-backend ./backend
+      - name: Backend image runs as non-root
+        run: test "$(docker image inspect --format '{{.Config.User}}' ops-backend)" = "app"
+
+      - name: Build frontend image
+        run: docker build -t ops-frontend ./frontend
+      - name: Frontend image runs as non-root
+        run: test "$(docker image inspect --format '{{.Config.User}}' ops-frontend)" = "nginx"
+
+      - name: Start frontend image
+        run: docker run -d --name ops-frontend -p 8081:8080 ops-frontend
+
+      - name: Verify security headers
+        run: |
+          for i in $(seq 1 20); do
+            curl -fsS http://localhost:8081/ >/dev/null 2>&1 && break
+            sleep 1
+          done
+          headers=$(curl -fsSI http://localhost:8081/)
+          printf '%s\n' "$headers"
+          printf '%s\n' "$headers" | grep -qi '^x-content-type-options: nosniff'
+          printf '%s\n' "$headers" | grep -qi '^x-frame-options: DENY'
+          printf '%s\n' "$headers" | grep -qi '^referrer-policy:'
+          printf '%s\n' "$headers" | grep -qi '^content-security-policy:'
+          printf '%s\n' "$headers" | grep -qi '^permissions-policy:'
+
+      - name: Stop frontend image
+        if: always()
+        run: docker rm -f ops-frontend
