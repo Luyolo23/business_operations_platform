@@ -58,9 +58,9 @@ Used by the frontend to build dropdowns instead of hard-coding enum values.
 `POST /api/tickets/{id}/responses` accepts a `tone` (`FORMAL`, `FRIENDLY`, `URGENT`) and an optional `body`:
 
 - **No `body`** — the configured generator drafts the text from the category/tone template.
-- **With `body`** — the reply is stored exactly as written (`generatedBy: "manual"`). It is still passed through the same risk checker.
+- **With `body`** — the text is normalised before it is stored (`generatedBy: "manual"`): Unicode NFKC, control/zero-width characters removed, surrounding whitespace trimmed, and a hard limit of 10,000 characters. It is still passed through the same risk checker.
 
-In both cases the risk level decides what happens next:
+In both cases the reply is normalised before screening, so invisible characters, full-width letters, or embedded NULs cannot hide risky wording. The risk level then decides what happens next:
 
 | Risk | Result |
 |---|---|
@@ -157,6 +157,10 @@ A unique index on `approvals(response_id)` means one response can never have two
 | `GET`  | `/api/compliance/overview` | MANAGER+ | Risk/approval headline metrics. Query: `?days=30` |
 | `GET`  | `/api/compliance/report` | MANAGER+ | Risk summary with recent flagged items. Query: `?days=30` |
 | `GET`  | `/api/compliance/audit` | MANAGER+ | Paginated audit log. Query: `?page=0&size=50` |
+
+Risk screening is rule-based and null-safe. Long or grouped card/ID numbers (`13–16` digits, or four groups of four digits) are `HIGH` risk; absolute promises, legal wording and blaming language are `MEDIUM`; gendered wording and contact details are `LOW`. Text is NFKC-normalised and stripped of control/zero-width characters before matching, and every stored reply is cleaned the same way. Audit details are collapsed to a single line and capped at 4,000 characters.
+
+When `AI_PROVIDER=llm`, configuration is validated at startup: the provider must be `mock` or `llm`, the base URL must be an absolute `http(s)` URL, the model must be non-blank, the timeout must be 1–120 seconds, and the API key may not contain control characters. Ticket text is wrapped in explicit untrusted-data delimiters before it reaches the model, so prompt-injection attempts cannot close the block. Model replies are cleaned and length-limited; blank, oversized, non-finite-confidence or number-inventing output falls back to the deterministic keyword classifier/template/narrator.
 
 ---
 

@@ -55,7 +55,7 @@ The React/TypeScript frontend talks exclusively to the Spring Boot REST API.
 | Package | Responsibility | Key classes |
 |---------|----------------|-------------|
 | `ticket` | Create, classify, route & manage tickets | `TicketService`, `TicketController`, `Ticket` |
-| `ai` | Classify tickets & generate replies (keyword or LLM) | `KeywordTicketClassifier`, `LlmTicketClassifier`, `LlmResponseGenerator` |
+| `ai` | Classify tickets & generate replies (keyword or LLM) | `KeywordTicketClassifier`, `LlmTicketClassifier`, `LlmResponseGenerator`, `PromptSafety` |
 | `response` | Draft & approve ticket replies | `ResponseService`, `ApprovalService` |
 | `analytics` | Aggregate metrics & narrative insights | `AnalyticsService`, `InsightService` |
 | `forecast` | Linear trend prediction | `ForecastService`, `LinearTrend` |
@@ -66,7 +66,7 @@ The React/TypeScript frontend talks exclusively to the Spring Boot REST API.
 | `user` | User management (ADMIN CRUD) | `UserController`, `UserRepository` |
 | `security` | JWT auth, BCrypt password encoding | `JwtService`, `JwtAuthFilter`, `SecurityConfig` |
 | `config` | Data seeder (dev), Swagger metadata, public config | `DataSeeder`, `MetaController`, `PublicConfigController` |
-| `common` | Shared DTOs, global error handling | `GlobalExceptionHandler`, `ApiError`, `PageResponse` |
+| `common` | Shared DTOs, error handling, text normalisation | `GlobalExceptionHandler`, `ApiError`, `PageResponse`, `TextSafety` |
 
 ---
 
