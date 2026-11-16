@@ -3,6 +3,7 @@ package com.capaciti.ops;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -12,6 +13,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.capaciti.ops.compliance.AuditLog;
+import com.capaciti.ops.compliance.AuditLogRepository;
 import com.capaciti.ops.notification.NotificationRepository;
 import com.capaciti.ops.user.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -61,6 +64,7 @@ class TicketFlowIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired NotificationRepository notificationRepository;
     @Autowired UserRepository users;
+    @Autowired AuditLogRepository auditLogs;
 
     private static final MediaType JSON = MediaType.APPLICATION_JSON;
     private static final String JWT_SECRET = "integration-test-secret-at-least-32-bytes-long";
@@ -209,6 +213,52 @@ class TicketFlowIntegrationTest {
 
         assertEquals("PENDING_APPROVAL", reply.get("status").asText());
         assertEquals("MEDIUM", reply.get("riskLevel").asText());
+    }
+
+    @Test
+    void invisibleCharactersCannotHideARiskyReply() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "Laptop request", "I need a new laptop")
+                .get("id").asLong();
+
+        // A zero-width space used to bypass the "guarantee" rule and auto-send the reply.
+        JsonNode reply = writeReply(login("agent.it@ops.local"), id,
+                "We guaran\u200Btee this will be fixed tomorrow.");
+
+        assertEquals("PENDING_APPROVAL", reply.get("status").asText());
+        assertEquals("MEDIUM", reply.get("riskLevel").asText());
+    }
+
+    @Test
+    void controlCharactersAreRemovedBeforeAReplyIsStored() throws Exception {
+        long id = createTicket(login("employee@ops.local"), "Laptop request", "I need a new laptop")
+                .get("id").asLong();
+
+        JsonNode reply = writeReply(login("agent.it@ops.local"), id, "Hello\u0000 there");
+
+        assertFalse(reply.get("body").asText().contains("\u0000"));
+        assertTrue(reply.get("body").asText().contains("Hello there"));
+    }
+
+    @Test
+    void auditDetailsCannotBeSplitAcrossLines() throws Exception {
+        String employee = login("employee@ops.local");
+        long id = createTicket(employee, "Laptop request", "I need a new laptop").get("id").asLong();
+        String agent = login("agent.it@ops.local");
+        writeReply(agent, id, "A laptop has been ordered for you.");
+        mvc.perform(patch("/api/tickets/" + id + "/status").header("Authorization", agent)
+                        .contentType(JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/tickets/" + id + "/resolution").header("Authorization", employee)
+                        .contentType(JSON).content(json.writeValueAsString(Map.of(
+                                "confirmed", true, "comment", "line one\nline two"))))
+                .andExpect(status().isOk());
+
+        AuditLog entry = auditLogs.findAll().stream()
+                .filter(a -> "TICKET_RESOLUTION_CONFIRMED".equals(a.getAction()) && id == a.getEntityId())
+                .findFirst().orElseThrow();
+        assertFalse(entry.getDetails().contains("\n"), "audit details must stay on one line");
+        assertFalse(entry.getDetails().contains("\r"), "audit details must stay on one line");
     }
 
     @Test

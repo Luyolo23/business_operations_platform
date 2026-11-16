@@ -5,6 +5,7 @@ import com.capaciti.ops.ai.ResponseGenerator;
 import com.capaciti.ops.common.Exceptions.BadRequestException;
 import com.capaciti.ops.common.Exceptions.ConflictException;
 import com.capaciti.ops.common.Exceptions.NotFoundException;
+import com.capaciti.ops.common.TextSafety;
 import com.capaciti.ops.compliance.AuditService;
 import com.capaciti.ops.compliance.ComplianceService;
 import com.capaciti.ops.compliance.RiskAssessment;
@@ -108,18 +109,25 @@ public class ResponseService {
      */
     private GeneratedResponse draft(Ticket ticket, Tone tone, String body, AuthUser caller) {
         if (body != null) {
-            String written = body.trim();
-            if (written.isEmpty()) {
-                throw new BadRequestException("The reply body cannot be empty");
-            }
-            if (written.length() > 10000) {
-                throw new BadRequestException("The reply body must be 10000 characters or fewer");
-            }
+            String written = TextSafety.cleanReply(body);
+            requireValidReply(written);
             return new GeneratedResponse(written, "manual", "Written manually by " + caller.email() + ".");
         }
         ResponseTemplate template = templates.findByCategoryAndTone(ticket.getCategory(), tone)
                 .orElseThrow(() -> new NotFoundException("No template for " + ticket.getCategory() + "/" + tone));
-        return generator.generate(ticket, tone, template.getBody());
+        GeneratedResponse generated = generator.generate(ticket, tone, template.getBody());
+        String cleaned = TextSafety.cleanReply(generated.body());
+        requireValidReply(cleaned);
+        return new GeneratedResponse(cleaned, generated.generatedBy(), generated.transparencyNote());
+    }
+
+    private static void requireValidReply(String text) {
+        if (text.isEmpty()) {
+            throw new BadRequestException("The reply body cannot be empty");
+        }
+        if (text.length() > 10000) {
+            throw new BadRequestException("The reply body must be 10000 characters or fewer");
+        }
     }
 
     @Transactional(readOnly = true)
