@@ -128,7 +128,7 @@ A unique index on `approvals(response_id)` means one response can never have two
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET`  | `/api/analytics/summary` | MANAGER+ | Aggregate stats. Query: `?days=30&category=IT` |
+| `GET`  | `/api/analytics/summary` | MANAGER+ | Aggregate stats. Query: `?days=30&category=IT`. The window is clamped to 1–365 days. |
 | `GET`  | `/api/analytics/insights` | MANAGER+ | AI-generated narrative insights |
 
 ---
@@ -145,7 +145,7 @@ A unique index on `approvals(response_id)` means one response can never have two
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET`  | `/api/reports/weekly` | MANAGER+ | Weekly report JSON. Query: `?department=IT` |
+| `GET`  | `/api/reports/weekly` | MANAGER+ | Weekly report JSON. Query: `?department=IT`. Both the 7-day summary and the 28-day forecast use only that department's tickets. |
 | `GET`  | `/api/reports/weekly/pdf` | MANAGER+ | Download weekly report as PDF |
 
 ---
@@ -154,11 +154,11 @@ A unique index on `approvals(response_id)` means one response can never have two
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET`  | `/api/compliance/overview` | MANAGER+ | Risk/approval headline metrics. Query: `?days=30` |
-| `GET`  | `/api/compliance/report` | MANAGER+ | Risk summary with recent flagged items. Query: `?days=30` |
+| `GET`  | `/api/compliance/overview` | MANAGER+ | Risk/approval headline metrics. Query: `?days=30`. The window is clamped to 1–365 days. |
+| `GET`  | `/api/compliance/report` | MANAGER+ | Risk summary with recent flagged items. Query: `?days=30`. The window is clamped to 1–365 days. |
 | `GET`  | `/api/compliance/audit` | MANAGER+ | Paginated audit log. Query: `?page=0&size=50` |
 
-Risk screening is rule-based and null-safe. Long or grouped card/ID numbers (`13–16` digits, or four groups of four digits) are `HIGH` risk; absolute promises, legal wording and blaming language are `MEDIUM`; gendered wording and contact details are `LOW`. Text is NFKC-normalised and stripped of control/zero-width characters before matching, and every stored reply is cleaned the same way. Audit details are collapsed to a single line and capped at 4,000 characters.
+Risk counts, flagged replies and approval decisions (`approved` / `rejected`) cover the requested window. `pendingApprovals` is the current backlog and is not period-filtered. Risk screening is rule-based and null-safe. Long or grouped card/ID numbers (`13–16` digits, or four groups of four digits) are `HIGH` risk; absolute promises, legal wording and blaming language are `MEDIUM`; gendered wording and contact details are `LOW`. Text is NFKC-normalised and stripped of control/zero-width characters before matching, and every stored reply is cleaned the same way. Audit details are collapsed to a single line and capped at 4,000 characters.
 
 When `AI_PROVIDER=llm`, configuration is validated at startup: the provider must be `mock` or `llm`, the base URL must be an absolute `http(s)` URL, the model must be non-blank, the timeout must be 1–120 seconds, and the API key may not contain control characters. Ticket text is wrapped in explicit untrusted-data delimiters before it reaches the model, so prompt-injection attempts cannot close the block. Model replies are cleaned and length-limited; blank, oversized, non-finite-confidence or number-inventing output falls back to the deterministic keyword classifier/template/narrator.
 
