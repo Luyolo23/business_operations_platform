@@ -17,14 +17,18 @@ RUN --mount=type=cache,target=/root/.m2 \
 # ─── Stage 2: slim runtime image ─────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine
 
-# curl is used by the Docker healthcheck in docker-compose.full.yml
-RUN apk add --no-cache curl
+# curl is used by the Docker healthcheck in docker-compose.full.yml.
+# Run as an unprivileged user: a compromised app should not be root in the container.
+RUN apk add --no-cache curl \
+    && addgroup -S app \
+    && adduser -S -G app app
 
 WORKDIR /app
-COPY --from=builder /build/app.jar app.jar
+COPY --from=builder --chown=app:app /build/app.jar app.jar
+
+USER app
 
 EXPOSE 8080
 
-# The 'dev' profile is NOT active here; seeder is disabled by default.
-# Override with -e SPRING_PROFILES_ACTIVE=dev for local testing.
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Respect container memory limits instead of the JVM guessing the host's RAM.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

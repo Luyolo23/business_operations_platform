@@ -4,7 +4,8 @@ name: ops-full          # separate project — never clashes with the dev postgr
 # 1. Copy .env.example to .env and fill in your values (especially JWT_SECRET and AI_API_KEY).
 # 2. docker compose -f docker-compose.full.yml up --build
 # 3. Open http://localhost:8081  (frontend via Nginx, proxied to the backend)
-#    Or   http://localhost:8080  (backend Swagger UI: /swagger-ui.html)
+#    Health: http://localhost:8080/actuator/health
+#    Swagger is off by default; set SPRING_PROFILES_ACTIVE=dev to expose it.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -22,7 +23,7 @@ services:
     # Published only so pgAdmin on the host can inspect the database.
     # Use host port 5434 (the dev compose file uses 5433). Remove in production.
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ops -d opsdb"]
       interval: 5s
@@ -35,6 +36,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
       DB_URL:      jdbc:postgresql://postgres:5432/opsdb
       DB_USER:     ops
@@ -44,14 +47,14 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-https://api.groq.com/openai/v1}
       AI_API_KEY:  ${AI_API_KEY:-}
       AI_MODEL:    ${AI_MODEL:-openai/gpt-oss-120b}
-      CORS_ORIGINS: http://localhost:8081
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8081}
       # Seeder is off by default; set SPRING_PROFILES_ACTIVE=dev to enable demo data
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
       interval: 10s
@@ -65,11 +68,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "8081:80"
+      - "8081:8080"
 
 volumes:
   pgdata:

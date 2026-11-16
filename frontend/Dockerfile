@@ -14,8 +14,12 @@ RUN npm run build
 # ─── Stage 2: serve with Nginx ────────────────────────────────────────────────
 FROM nginx:1.27-alpine
 
-# Remove default Nginx page
-RUN rm -rf /usr/share/nginx/html/*
+# Remove default Nginx page and give the unprivileged nginx user the paths it
+# needs at runtime (cache, pid). The container no longer runs as root.
+RUN rm -rf /usr/share/nginx/html/* \
+    && chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx \
+    && touch /var/run/nginx.pid \
+    && chown nginx:nginx /var/run/nginx.pid
 
 # Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -24,6 +28,9 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # so that React Router handles client-side navigation.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+USER nginx
+
+# nginx listens on 8080 because an unprivileged user cannot bind 80.
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]
