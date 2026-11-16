@@ -89,7 +89,7 @@ export default function EmployeesPage() {
 
       {result && <Notice tone={result.tone}>{result.text}</Notice>}
 
-      <div className="grid-2">
+      <div className="grid-2 people-grid">
         <Panel title="Add a person">
           <form onSubmit={create}>
             <div className="field">
@@ -133,41 +133,49 @@ export default function EmployeesPage() {
           <Status loading={users.loading} error={users.error} />
           {users.data?.length === 0 && <Empty title="No accounts yet">Create the first one on the left.</Empty>}
           {users.data && users.data.length > 0 && (
-            <table className="plain">
-              <thead>
-                <tr><th>Name</th><th>Role</th><th>Status</th><th /></tr>
-              </thead>
-              <tbody>
-                {users.data.map((u) => (
-                  <tr key={u.id}>
-                    <td>
-                      <strong>{u.fullName}</strong>
-                      <div className="muted">{u.email}</div>
-                      {u.department && <div className="muted">{DEPT_LABEL[u.department]} team</div>}
-                    </td>
-                    <td>{ROLE_LABEL[u.role]}</td>
-                    <td>
-                      <span className="tag">
-                        <i className="dot" style={{ background: u.active ? 'var(--fin)' : 'var(--ink-3)' }} />
-                        {u.active ? 'Active' : 'Switched off'}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
-                        <button className="btn btn-line" disabled={actingOn === u.id}
-                          onClick={() => toggle(u)}>
-                          {actingOn === u.id ? 'Working…' : u.active ? 'Switch off' : 'Switch on'}
-                        </button>
-                        <button className="btn btn-line btn-danger" disabled={actingOn === u.id}
-                          onClick={() => remove(u)}>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table className="plain users-table">
+                <colgroup>
+                  <col />
+                  <col className="col-role" />
+                  <col className="col-status" />
+                  <col className="col-actions" />
+                </colgroup>
+                <thead>
+                  <tr><th>Name</th><th>Role</th><th>Status</th><th /></tr>
+                </thead>
+                <tbody>
+                  {users.data.map((u) => (
+                    <tr key={u.id}>
+                      <td>
+                        <strong>{u.fullName}</strong>
+                        <div className="muted">{u.email}</div>
+                        {u.department && <div className="muted">{DEPT_LABEL[u.department]} team</div>}
+                      </td>
+                      <td>{ROLE_LABEL[u.role]}</td>
+                      <td>
+                        <span className="tag">
+                          <i className="dot" style={{ background: u.active ? 'var(--fin)' : 'var(--ink-3)' }} />
+                          {u.active ? 'Active' : 'Switched off'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="user-actions">
+                          <button className="btn btn-line" disabled={actingOn === u.id}
+                            onClick={() => toggle(u)}>
+                            {actingOn === u.id ? 'Working…' : u.active ? 'Switch off' : 'Switch on'}
+                          </button>
+                          <button className="btn btn-line btn-danger" disabled={actingOn === u.id}
+                            onClick={() => remove(u)}>
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           <p className="muted" style={{ marginTop: 16 }}>
             Switching someone off blocks sign-in immediately but keeps their ticket history.

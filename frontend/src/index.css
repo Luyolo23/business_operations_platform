@@ -127,7 +127,8 @@ textarea { font-family: var(--prose); font-size: 17px; line-height: 1.55; min-he
 .bars-track span { display: block; height: 100%; border-radius: 999px; }
 .bars-value { text-align: right; font-weight: 600; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; margin-top: 20px; }
-.grid-2 > .panel { margin-top: 0; }
+.grid-2 > .panel { margin-top: 0; min-width: 0; }
+.people-grid { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
 .chart { height: 280px; }
 
 /* ---------- misc ---------- */
@@ -139,6 +140,23 @@ textarea { font-family: var(--prose); font-size: 17px; line-height: 1.55; min-he
 .list .unread-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--it); display: inline-block; margin-right: 10px; }
 .plain { width: 100%; border-collapse: collapse; } .plain th { text-align: left; font-weight: 600; color: var(--ink-3); font-size: 13px; padding: 8px 10px; }
 .plain td { padding: 10px; border-top: 1px solid var(--line); vertical-align: top; }
+
+/* ---------- people: access table ---------- */
+.table-scroll { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.users-table { width: 100%; table-layout: fixed; min-width: 580px; }
+.users-table th, .users-table td { padding-left: 6px; padding-right: 6px; }
+.users-table th:first-child, .users-table td:first-child { padding-left: 0; }
+.users-table th:last-child, .users-table td:last-child { padding-right: 0; }
+.users-table td { vertical-align: middle; padding-top: 12px; padding-bottom: 12px; }
+.users-table td:first-child { overflow-wrap: anywhere; }
+.users-table .col-role { width: 80px; }
+.users-table .col-status { width: 108px; }
+.users-table .col-actions { width: 190px; }
+.users-table .user-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: nowrap; }
+.users-table .btn { display: inline-flex; align-items: center; justify-content: center; padding: 6px 12px; font-size: 14px; line-height: 1.2; border: 1.5px solid transparent; border-radius: 999px; white-space: nowrap; }
+.users-table .btn-line { border-color: var(--pine); }
+.users-table .btn-danger { background: var(--urgent); border-color: var(--urgent); color: #fff; }
+.users-table .btn-danger:hover { background: #A9231B; border-color: #A9231B; }
 .pills { display: flex; gap: 8px; flex-wrap: wrap; }
 .pill-btn { border: 1.5px solid var(--line); background: transparent; border-radius: 999px; padding: 7px 14px; font: inherit; cursor: pointer; color: var(--ink); }
 .pill-btn[aria-pressed='true'] { background: var(--pine); color: #fff; border-color: var(--pine); }
@@ -158,6 +176,10 @@ textarea { font-family: var(--prose); font-size: 17px; line-height: 1.55; min-he
 .viz-copy p { font-family: var(--prose); font-size: 17px; line-height: 1.55; color: #A9C9C2; margin-top: 12px; max-width: 46ch; }
 .viz-fallback { flex: 1; min-height: 440px; }
 
+@media (max-width: 1100px) {
+  .people-grid { grid-template-columns: 1fr; }
+  .people-grid > .panel:first-child { max-width: 560px; }
+}
 @media (max-width: 900px) {
   .split { grid-template-columns: 1fr; gap: 28px; }
   .signin { grid-template-columns: 1fr; } .signin-form { padding: 36px 24px 40px; } .signin-viz { min-height: auto; padding: 36px 20px 28px; }
