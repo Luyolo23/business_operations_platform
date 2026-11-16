@@ -11,17 +11,40 @@ spring:
       ddl-auto: none        # schema is owned by Flyway (db/migration). Never let Hibernate change it.
   flyway:
     enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
 server:
   port: 8080
+  shutdown: graceful
+  # nginx sets X-Forwarded-*; this keeps redirects and client IPs correct behind it.
+  forward-headers-strategy: framework
+  error:
+    # Never leak exception messages or stack traces in HTTP responses.
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
 
 management:
+  endpoint:
+    health:
+      show-details: never
   endpoints:
     web:
       exposure:
         include: health,info
 
+# Interactive API docs are a developer tool, not a production surface.
+# application-dev.yml turns them on; the default profile keeps them dark.
+springdoc:
+  api-docs:
+    enabled: ${app.api-docs.enabled:false}
+  swagger-ui:
+    enabled: ${app.api-docs.enabled:false}
+
 app:
+  api-docs:
+    enabled: false
   timezone: Africa/Johannesburg
   jwt:
     # No default: the app fails fast at startup if JWT_SECRET is missing or < 32 bytes.

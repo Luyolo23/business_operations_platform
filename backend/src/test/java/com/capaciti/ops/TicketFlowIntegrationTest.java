@@ -684,6 +684,15 @@ class TicketFlowIntegrationTest {
     }
 
     @Test
+    void apiDocumentationIsNotPubliclyExposedByDefault() throws Exception {
+        // Docs are a development convenience. In the default (production) profile they
+        // must not give anonymous callers a map of the API, even if springdoc is
+        // re-enabled by configuration.
+        mvc.perform(get("/v3/api-docs")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void forbiddenRequestsReturnTheJsonApiErrorEnvelope() throws Exception {
         mvc.perform(get("/api/analytics/summary").header("Authorization", login("employee@ops.local")))
                 .andExpect(status().isForbidden())

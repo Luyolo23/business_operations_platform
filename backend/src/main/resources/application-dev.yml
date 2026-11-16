@@ -6,6 +6,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 app:
+  api-docs:
+    enabled: true       # Swagger UI / OpenAPI for local development only
   jwt:
     # DEV ONLY. This is a public, committed value so `mvn spring-boot:run` works out of
     # the box. Production must set JWT_SECRET (>= 32 bytes); the default profile refuses
