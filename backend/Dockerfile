@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/root/.m2 \
     mv target/*.jar /build/app.jar
 
 # ─── Stage 2: slim runtime image ─────────────────────────────────────────────
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 
 # curl is used by the Docker healthcheck in docker-compose.full.yml.
 # Run as an unprivileged user: a compromised app should not be root in the container.
