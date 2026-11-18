@@ -12,7 +12,7 @@ COPY . .
 RUN npm run build
 
 # ─── Stage 2: serve with Nginx ────────────────────────────────────────────────
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 # Remove default Nginx page and give the unprivileged nginx user the paths it
 # needs at runtime (cache, pid). The container no longer runs as root.
