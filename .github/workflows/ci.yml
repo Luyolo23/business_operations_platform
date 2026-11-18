@@ -33,7 +33,7 @@ jobs:
         run: mvn -B test -DexcludedGroups=integration
       - name: Upload surefire reports on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-unit-reports
           path: backend/target/surefire-reports/
@@ -57,7 +57,7 @@ jobs:
         run: mvn -B test -Dgroups=integration
       - name: Upload surefire reports on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-integration-reports
           path: backend/target/surefire-reports/
