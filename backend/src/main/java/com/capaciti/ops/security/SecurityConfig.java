@@ -25,25 +25,46 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter,
+                                           JsonAccessDeniedHandler accessDeniedHandler,
+                                           @Value("${app.api-docs.enabled:false}") boolean apiDocsEnabled)
+            throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(c -> {})
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-            .authorizeHttpRequests(a -> a
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
-                .requestMatchers("/actuator/health", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                // staff-only
-                .requestMatchers(HttpMethod.POST, "/api/tickets/*/responses").hasAnyRole("AGENT", "MANAGER", "ADMIN")
-                .requestMatchers(HttpMethod.PATCH, "/api/tickets/*/status", "/api/tickets/*/classification")
-                        .hasAnyRole("AGENT", "MANAGER", "ADMIN")
-                .requestMatchers(HttpMethod.PATCH, "/api/tickets/*/assignee").hasAnyRole("MANAGER", "ADMIN")
-                // managers / admins only
-                .requestMatchers("/api/approvals/**", "/api/analytics/**", "/api/forecast/**",
-                        "/api/reports/**", "/api/compliance/**", "/api/users/**").hasAnyRole("MANAGER", "ADMIN")
-                .anyRequest().authenticated())
+            .exceptionHandling(e -> e
+                    .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                    .accessDeniedHandler(accessDeniedHandler))
+            .authorizeHttpRequests(a -> {
+                a.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/config").permitAll()
+                        .requestMatchers("/actuator/health").permitAll();
+                // Swagger/OpenAPI is public only in development; elsewhere it falls
+                // through to authenticated(), and springdoc is disabled entirely.
+                if (apiDocsEnabled) {
+                    a.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
+                }
+                a
+                        // staff-only
+                        .requestMatchers(HttpMethod.POST, "/api/tickets/*/responses").hasAnyRole("AGENT", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/tickets/*/status", "/api/tickets/*/classification")
+                                .hasAnyRole("AGENT", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/tickets/*/assignee").hasAnyRole("MANAGER", "ADMIN")
+                        // managers / admins only (read-only views)
+                        .requestMatchers("/api/approvals/**", "/api/analytics/**", "/api/forecast/**",
+                                "/api/reports/**", "/api/compliance/**").hasAnyRole("MANAGER", "ADMIN")
+                        // Keep /staff before the broader matcher: managers need the assignable staff list,
+                        // but only admins may list every account.
+                        .requestMatchers(HttpMethod.GET, "/api/users/staff").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/users", "/api/users/**").hasRole("ADMIN")
+                        // admin only: create / deactivate / activate user accounts
+                        .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/users/*/deactivate",
+                                "/api/users/*/activate").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/users/*").hasRole("ADMIN")
+                        .anyRequest().authenticated();
+            })
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

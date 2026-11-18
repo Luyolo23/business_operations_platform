@@ -3,6 +3,7 @@ package com.capaciti.ops.response;
 import com.capaciti.ops.response.ResponseDtos.ApprovalDto;
 import com.capaciti.ops.response.ResponseDtos.DecisionRequest;
 import com.capaciti.ops.security.AuthUser;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +22,7 @@ public class ApprovalController {
     }
 
     @PostMapping("/{id}/decision")
-    public ApprovalDto decide(@PathVariable Long id, @RequestBody DecisionRequest req,
+    public ApprovalDto decide(@PathVariable Long id, @Valid @RequestBody DecisionRequest req,
                               @AuthenticationPrincipal AuthUser caller) {
         return service.decide(id, req.approve(), req.comment(), caller);
     }

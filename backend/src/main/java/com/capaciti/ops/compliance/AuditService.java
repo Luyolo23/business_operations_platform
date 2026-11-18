@@ -1,5 +1,6 @@
 package com.capaciti.ops.compliance;
 
+import com.capaciti.ops.common.TextSafety;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,8 +19,8 @@ public class AuditService {
         a.setAction(action);
         a.setEntityType(entityType);
         a.setEntityId(entityId);
-        a.setActorEmail(actorEmail);
-        a.setDetails(details);
+        a.setActorEmail(TextSafety.oneLine(actorEmail, 320));
+        a.setDetails(TextSafety.auditDetail(details));
         repo.save(a);
     }
 }

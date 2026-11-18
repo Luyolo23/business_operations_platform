@@ -33,6 +33,10 @@ public class Approval {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

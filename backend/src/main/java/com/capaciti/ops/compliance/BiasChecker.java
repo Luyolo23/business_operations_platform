@@ -1,5 +1,6 @@
 package com.capaciti.ops.compliance;
 
+import com.capaciti.ops.common.TextSafety;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -21,6 +22,8 @@ public class BiasChecker {
     private static final List<Rule> RULES = List.of(
             Rule.of("PII_LONG_NUMBER", "\\b\\d{13,16}\\b", RiskLevel.HIGH,
                     "Contains a 13-16 digit number (possible ID or card number)."),
+            Rule.of("PII_GROUPED_NUMBER", "\\b(?:\\d{4}[ -]){3}\\d{4}\\b", RiskLevel.HIGH,
+                    "Contains a grouped 16-digit number (possible card number)."),
             Rule.of("DISCRIMINATORY_LANGUAGE",
                     "\\b(old people|young people|foreigners?|those people|people like you|illegal immigrants?)\\b",
                     RiskLevel.HIGH, "Language that generalises about a group of people."),
@@ -36,11 +39,15 @@ public class BiasChecker {
                     "Contains an email address; confirm it is appropriate to share."));
 
     public RiskCheckResult check(String text) {
+        String normalised = TextSafety.cleanReply(text);
+        if (normalised.isBlank()) {
+            return new RiskCheckResult(RiskLevel.NONE, List.of(), "No risk indicators found.");
+        }
         RiskLevel worst = RiskLevel.NONE;
         List<String> flags = new ArrayList<>();
         List<String> notes = new ArrayList<>();
         for (Rule r : RULES) {
-            if (r.pattern().matcher(text).find()) {
+            if (r.pattern().matcher(normalised).find()) {
                 flags.add(r.flag());
                 notes.add(r.flag() + ": " + r.explanation());
                 if (r.level().ordinal() > worst.ordinal()) worst = r.level();

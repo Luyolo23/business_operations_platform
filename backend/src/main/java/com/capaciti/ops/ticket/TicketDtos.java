@@ -17,11 +17,16 @@ public final class TicketDtos {
 
     public record AssignRequest(@NotNull Long userId) {}
 
+    /** The requester confirms the fix worked, or says the problem is still there. */
+    public record ResolutionConfirmationRequest(@NotNull Boolean confirmed,
+                                                @Size(max = 2000) String comment) {}
+
     public record TicketDto(Long id, String title, String description, Category category, Priority priority,
                             TicketStatus status, Long requesterId, String requesterName, String requesterEmail,
                             Long assigneeId, String assigneeName, Double classificationConfidence,
                             String classificationSource, boolean escalated, Instant createdAt, Instant updatedAt,
-                            Instant firstResponseAt, Instant resolvedAt) {
+                            Instant firstResponseAt, Instant resolvedAt, Instant requesterConfirmedAt,
+                            String requesterFeedback) {
         public static TicketDto from(Ticket t) {
             return new TicketDto(t.getId(), t.getTitle(), t.getDescription(), t.getCategory(), t.getPriority(),
                     t.getStatus(), t.getRequester().getId(), t.getRequester().getFullName(),
@@ -29,7 +34,8 @@ public final class TicketDtos {
                     t.getAssignee() == null ? null : t.getAssignee().getId(),
                     t.getAssignee() == null ? null : t.getAssignee().getFullName(),
                     t.getClassificationConfidence(), t.getClassificationSource(), t.isEscalated(),
-                    t.getCreatedAt(), t.getUpdatedAt(), t.getFirstResponseAt(), t.getResolvedAt());
+                    t.getCreatedAt(), t.getUpdatedAt(), t.getFirstResponseAt(), t.getResolvedAt(),
+                    t.getRequesterConfirmedAt(), t.getRequesterFeedback());
         }
     }
 }

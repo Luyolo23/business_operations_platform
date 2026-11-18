@@ -63,6 +63,14 @@ public class TicketController {
         return tickets.assign(id, req.userId(), caller);
     }
 
+    /** Requester confirms the fix worked, or reopens the request. */
+    @PostMapping("/{id}/resolution")
+    public TicketDto confirmResolution(@PathVariable Long id,
+                                       @Valid @RequestBody ResolutionConfirmationRequest req,
+                                       @AuthenticationPrincipal AuthUser caller) {
+        return tickets.confirmResolution(id, req.confirmed(), req.comment(), caller);
+    }
+
     @GetMapping("/{id}/responses")
     public List<ResponseDto> listResponses(@PathVariable Long id, @AuthenticationPrincipal AuthUser caller) {
         return responses.list(id, caller);
@@ -72,6 +80,6 @@ public class TicketController {
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseDto generateResponse(@PathVariable Long id, @Valid @RequestBody GenerateResponseRequest req,
                                         @AuthenticationPrincipal AuthUser caller) {
-        return responses.generate(id, req.tone(), caller);
+        return responses.generate(id, req.tone(), req.body(), caller);
     }
 }

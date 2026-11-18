@@ -11,4 +11,6 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
     List<Ticket> findByCreatedAtAfterAndCategory(Instant since, Category category);
     long countByAssigneeIdAndStatusIn(Long assigneeId, Collection<TicketStatus> statuses);
     List<Ticket> findByStatusInAndEscalatedFalse(Collection<TicketStatus> statuses);
+    long countByRequester_Id(Long requesterId);
+    long countByAssignee_Id(Long assigneeId);
 }

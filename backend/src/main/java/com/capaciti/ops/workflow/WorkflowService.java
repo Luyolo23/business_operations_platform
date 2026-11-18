@@ -6,6 +6,7 @@ import com.capaciti.ops.ticket.Category;
 import com.capaciti.ops.ticket.Priority;
 import com.capaciti.ops.ticket.Ticket;
 import com.capaciti.ops.ticket.TicketRepository;
+import com.capaciti.ops.ticket.TicketStateMachine;
 import com.capaciti.ops.ticket.TicketStatus;
 import com.capaciti.ops.user.Role;
 import com.capaciti.ops.user.User;
@@ -36,26 +37,39 @@ public class WorkflowService {
     private final TicketRepository tickets;
     private final NotificationService notifications;
     private final AuditService audit;
+    private final TicketStateMachine stateMachine;
 
     public WorkflowService(RoutingRuleRepository rules, UserRepository users, TicketRepository tickets,
-                           NotificationService notifications, AuditService audit) {
+                           NotificationService notifications, AuditService audit,
+                           TicketStateMachine stateMachine) {
         this.rules = rules;
         this.users = users;
         this.tickets = tickets;
         this.notifications = notifications;
         this.audit = audit;
+        this.stateMachine = stateMachine;
+    }
+
+    /** Which department a category is routed to (a routing rule may override the category itself). */
+    public Category departmentFor(Category category) {
+        return rules.findByCategoryAndActiveTrue(category)
+                .map(RoutingRule::getTargetDepartment).orElse(category);
+    }
+
+    /** The active agent in a department with the fewest open tickets, if any. */
+    public Optional<User> pickAgent(Category department) {
+        return users.findByRoleAndDepartmentAndActiveTrue(Role.AGENT, department).stream()
+                .min(Comparator.comparingLong(a -> tickets.countByAssigneeIdAndStatusIn(a.getId(), OPEN_STATUSES)));
     }
 
     /** Called right after a ticket is created and classified. */
     @Transactional
     public void routeAndNotify(Ticket ticket) {
-        Category department = rules.findByCategoryAndActiveTrue(ticket.getCategory())
-                .map(RoutingRule::getTargetDepartment).orElse(ticket.getCategory());
-
-        Optional<User> agent = users.findByRoleAndDepartment(Role.AGENT, department).stream()
-                .min(Comparator.comparingLong(a -> tickets.countByAssigneeIdAndStatusIn(a.getId(), OPEN_STATUSES)));
+        Category department = departmentFor(ticket.getCategory());
+        Optional<User> agent = pickAgent(department);
 
         agent.ifPresent(a -> {
+            stateMachine.require(ticket.getStatus(), TicketStatus.ASSIGNED);
             ticket.setAssignee(a);
             ticket.setStatus(TicketStatus.ASSIGNED);
         });
@@ -94,6 +108,7 @@ public class WorkflowService {
     }
 
     private void notifyManagers(Ticket t, String subject, String message) {
-        users.findByRoleIn(List.of(Role.MANAGER)).forEach(m -> notifications.notify(m, t.getId(), subject, message));
+        users.findByRoleInAndActiveTrue(List.of(Role.MANAGER))
+                .forEach(m -> notifications.notify(m, t.getId(), subject, message));
     }
 }

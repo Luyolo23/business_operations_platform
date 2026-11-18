@@ -11,29 +11,58 @@ spring:
       ddl-auto: none        # schema is owned by Flyway (db/migration). Never let Hibernate change it.
   flyway:
     enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
 server:
   port: 8080
+  shutdown: graceful
+  # nginx sets X-Forwarded-*; this keeps redirects and client IPs correct behind it.
+  forward-headers-strategy: framework
+  error:
+    # Never leak exception messages or stack traces in HTTP responses.
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
 
 management:
+  endpoint:
+    health:
+      show-details: never
   endpoints:
     web:
       exposure:
         include: health,info
 
+# Interactive API docs are a developer tool, not a production surface.
+# application-dev.yml turns them on; the default profile keeps them dark.
+springdoc:
+  api-docs:
+    enabled: ${app.api-docs.enabled:false}
+  swagger-ui:
+    enabled: ${app.api-docs.enabled:false}
+
 app:
+  api-docs:
+    enabled: false
   timezone: Africa/Johannesburg
   jwt:
-    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}   # >= 32 bytes
+    # No default: the app fails fast at startup if JWT_SECRET is missing or < 32 bytes.
+    # The dev profile supplies a local-only default in application-dev.yml.
+    secret: ${JWT_SECRET:}
     expiration-minutes: 480
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
   seed:
-    enabled: true           # creates demo users (+ demo tickets) when the users table is empty
-    demo-tickets: true
+    enabled: false          # ⚠ false in production! Enable in application-dev.yml (--spring.profiles.active=dev)
+    demo-tickets: false
+  demo:
+    # Show the demo-login pills on the login page. Keep false in production: they
+    # advertise real seeded credentials. application-dev.yml enables it.
+    show-accounts: false
   ai:
     provider: ${AI_PROVIDER:mock}          # mock = keyword classifier + templates | llm = OpenAI-compatible API
     base-url: ${AI_BASE_URL:https://api.groq.com/openai/v1}
     api-key: ${AI_API_KEY:}
-    model: ${AI_MODEL:llama-3.3-70b-versatile}
+    model: ${AI_MODEL:openai/gpt-oss-120b}
     timeout-seconds: 20

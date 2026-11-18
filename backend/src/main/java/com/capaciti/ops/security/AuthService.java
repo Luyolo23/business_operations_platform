@@ -47,6 +47,7 @@ public class AuthService {
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest req) {
         User u = users.findByEmailIgnoreCase(req.email())
+                .filter(User::isActive)
                 .filter(found -> encoder.matches(req.password(), found.getPasswordHash()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
         return toResponse(u);
@@ -63,6 +64,7 @@ public class AuthService {
     }
 
     public static UserDto toDto(User u) {
-        return new UserDto(u.getId(), u.getEmail(), u.getFullName(), u.getRole(), u.getDepartment());
+        return new UserDto(u.getId(), u.getEmail(), u.getFullName(), u.getRole(), u.getDepartment(),
+                u.isActive());
     }
 }
