@@ -1,4 +1,4 @@
-.PHONY: up down db backend frontend test it full full-down clean live help
+.PHONY: up down db backend frontend lint test it full full-down clean live help
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Ops Assistant – developer shortcuts
@@ -23,6 +23,9 @@ backend: up ## Run the Spring Boot backend with the dev profile (seeder enabled)
 
 frontend: ## Install deps (if needed) and start the Vite dev server
 	cd frontend && npm install && npm run dev
+
+lint: ## Lint the frontend (ESLint)
+	cd frontend && npm run lint
 
 test: ## Run all unit tests (no Docker required)
 	cd backend && mvn -q test -DexcludedGroups=integration
