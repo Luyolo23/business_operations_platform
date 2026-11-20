@@ -6,7 +6,7 @@ import { useAsync } from '../components/useAsync';
 import { Bars, Panel, Stats, Status } from '../components/ui';
 import { DEPT_LABEL, DEPT_VAR, PRIORITY_LABEL } from '../theme';
 
-const PRIORITY_COLOR = { LOW: '#7B8D90', MEDIUM: '#2D52D6', HIGH: '#C9860A', URGENT: '#D6342A' } as const;
+const PRIORITY_COLOR = { LOW: '#6b8fa8', MEDIUM: '#2D52D6', HIGH: '#C9860A', URGENT: '#E32F33' } as const;
 
 export default function DashboardPage() {
   const [days, setDays] = useState(30);
@@ -46,11 +46,11 @@ export default function DashboardPage() {
             <div className="chart" role="img" aria-label="Line chart of requests received per day">
               <ResponsiveContainer>
                 <LineChart data={s.dailyVolume} margin={{ left: -16, right: 8, top: 8 }}>
-                  <CartesianGrid stroke="#D3DCD9" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} tick={{ fontSize: 12 }} stroke="#7B8D90" />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#7B8D90" />
+                  <CartesianGrid stroke="#c4d9e8" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} tick={{ fontSize: 12 }} stroke="#6b8fa8" />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#6b8fa8" />
                   <Tooltip />
-                  <Line type="monotone" dataKey="count" stroke="#0E4D4A" strokeWidth={2.5} dot={false} name="Requests" />
+                  <Line type="monotone" dataKey="count" stroke="#03203D" strokeWidth={2.5} dot={false} name="Requests" />
                 </LineChart>
               </ResponsiveContainer>
             </div>

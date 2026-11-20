@@ -16,7 +16,7 @@ export const STATUS_LABEL: Record<TicketStatus, string> = {
   AWAITING_APPROVAL: 'Waiting for approval', RESOLVED: 'Resolved', CLOSED: 'Closed',
 };
 export const STATUS_COLOR: Record<TicketStatus, string> = {
-  NEW: 'var(--ink-3)', ASSIGNED: 'var(--it)', IN_PROGRESS: 'var(--pine)',
+  NEW: 'var(--ink-3)', ASSIGNED: 'var(--it)', IN_PROGRESS: 'var(--color-primary)',
   AWAITING_APPROVAL: 'var(--ops)', RESOLVED: 'var(--fin)', CLOSED: 'var(--ink-3)',
 };
 export const PRIORITY_LABEL: Record<Priority, string> = { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', URGENT: 'Urgent' };

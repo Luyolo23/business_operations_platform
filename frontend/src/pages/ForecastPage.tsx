@@ -39,11 +39,11 @@ export default function ForecastPage() {
             <div className="chart" role="img" aria-label="Line chart of actual and projected requests per day">
               <ResponsiveContainer>
                 <LineChart data={chart} margin={{ left: -16, right: 8, top: 8 }}>
-                  <CartesianGrid stroke="#D3DCD9" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} tick={{ fontSize: 12 }} stroke="#7B8D90" />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#7B8D90" />
+                  <CartesianGrid stroke="#c4d9e8" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} tick={{ fontSize: 12 }} stroke="#6b8fa8" />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#6b8fa8" />
                   <Tooltip /><Legend />
-                  <Line type="monotone" dataKey="actual" stroke="#0E4D4A" strokeWidth={2.5} dot={false} name="Actual" connectNulls={false} />
+                  <Line type="monotone" dataKey="actual" stroke="#03203D" strokeWidth={2.5} dot={false} name="Actual" connectNulls={false} />
                   <Line type="monotone" dataKey="projected" stroke="#2D52D6" strokeWidth={2.5} strokeDasharray="6 5" dot={false} name="Projected" connectNulls={false} />
                 </LineChart>
               </ResponsiveContainer>
