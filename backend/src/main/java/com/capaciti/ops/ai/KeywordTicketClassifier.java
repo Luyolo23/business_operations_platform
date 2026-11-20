@@ -27,7 +27,11 @@ public class KeywordTicketClassifier implements TicketClassifier {
                 "hiring", "onboarding", "contract", "performance review", "benefits", "grievance", "disciplinary",
                 "training", "resignation", "payslip", "employee", "policy"));
         KEYWORDS.put(Category.FINANCE, List.of("invoice", "payment", "refund", "expense", "reimbursement", "budget",
-                "salary", "payroll", "tax", "purchase order", "claim", "receipt", "bank", "quotation", "paid"));
+                "salary", "payroll", "tax", "purchase order", "claim", "receipt", "bank", "quotation", "paid",
+                // Loans, advances and credit. Without these a loan request matched nothing
+                // and defaulted to OPERATIONS at 0.30 confidence.
+                "loan", "staff loan", "study loan", "advance", "salary advance", "credit", "bursary",
+                "instalment", "installment", "debit order", "interest"));
         KEYWORDS.put(Category.OPERATIONS, List.of("delivery", "supplier", "stock", "inventory", "logistics",
                 "warehouse", "schedule", "maintenance", "facility", "equipment", "vehicle", "booking",
                 "meeting room", "office", "shipment", "supply", "cleaning", "security"));

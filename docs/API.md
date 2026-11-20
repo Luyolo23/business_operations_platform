@@ -54,6 +54,28 @@ Used by the frontend to build dropdowns instead of hard-coding enum values.
 | `GET`  | `/api/tickets/{id}/responses` | Any | Staff see every response including drafts and risk details. The requester sees `APPROVED` replies only, with internal risk/approval fields removed. |
 | `POST` | `/api/tickets/{id}/responses` | AGENT+ | Draft a reply. Body: `{tone, body?}`. Omit `body` for an AI/template draft; send `body` for a manually written reply. Both are risk-screened. |
 
+### Classification
+
+With `AI_PROVIDER=mock` (the default), `KeywordTicketClassifier` scores the title and
+description against a per-category vocabulary. Title matches count double. The winning
+category is the highest score; if nothing matches, the ticket defaults to `OPERATIONS`
+with `confidence = 0.30`. Otherwise confidence is `0.40 + 0.55 × (best score ÷ total score)`,
+capped at `0.95`.
+
+| Category | Example vocabulary |
+|----------|-------------------|
+| IT | password, login, vpn, laptop, wifi, email, printer, server |
+| HR | leave, sick, maternity, recruitment, payslip, contract, grievance |
+| FINANCE | invoice, payment, refund, expense, salary, payroll, tax, loan, salary advance |
+| OPERATIONS | delivery, supplier, stock, inventory, warehouse, maintenance, booking |
+
+Priority comes from separate keyword lists: `URGENT` (urgent, asap, outage, cannot work),
+`HIGH` (not working, broken, blocked, unpaid, failed), `LOW` (question, how do i,
+information), otherwise `MEDIUM`.
+
+When `AI_PROVIDER=llm`, the model returns the category, priority, confidence and a
+one-sentence rationale; invalid output falls back to the keyword classifier.
+
 ### Replies and resolution
 
 `POST /api/tickets/{id}/responses` accepts a `tone` (`FORMAL`, `FRIENDLY`, `URGENT`) and an optional `body`:
