@@ -312,5 +312,6 @@ make live     # live Groq API tests
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Service diagram, module map, ticket lifecycle, security model |
 | [`docs/API.md`](docs/API.md) | All REST endpoints with auth requirements and request/response shapes |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Production runbook: env vars, first admin bootstrap, backups, TLS, troubleshooting |
+| [`docs/DATA_CLEANUP.md`](docs/DATA_CLEANUP.md) | Remove demo tickets and `@ops.local` accounts; end up with only your real admin/manager/agents |
 | [`docs/TEAM_GUIDE.md`](docs/TEAM_GUIDE.md) | Ownership, branching, how to add modules, secrets guide |
 | [`frontend/README.md`](frontend/README.md) | Frontend-specific setup and design notes |

@@ -106,6 +106,11 @@ APP_SEED_ENABLED=false docker compose -f docker-compose.full.yml up -d --force-r
 
 The seeder is idempotent: it returns immediately if any user already exists.
 
+> To remove the demo tickets and the seven `@ops.local` accounts afterwards — and end up
+> with only your real admin, manager and agents — follow
+> [`docs/DATA_CLEANUP.md`](DATA_CLEANUP.md). There is no delete-ticket endpoint, so that
+> guide includes a tested SQL script and a faster "reset the volume" path.
+
 > There is currently no change-password endpoint. Treat the demo password as public
 > and make sure every seeded account is deactivated.
 
