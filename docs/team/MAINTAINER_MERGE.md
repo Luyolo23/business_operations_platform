@@ -1,31 +1,33 @@
 # Maintainer: merge your branch into `main`
 
-This is only for Luyolo (backend lead). State of the repo when this was written:
+This is only for Luyolo (backend lead).
+
+> **Status: done.** `features/backend_setup` was merged into `main` in **PR #2**
+> (merge commit `05a2ba4`), and the database work followed in **PR #21** (`67932ba`).
+> Keep this file as the runbook for the next long-lived branch — the steps are still
+> correct and were verified with a real trial merge. The remaining blocker is the
+> GitHub billing lock described at the bottom, not git.
+
+State of the repo after those merges:
 
 | Ref | Commit | Notes |
 |-----|--------|-------|
-| `main` | `b98ab15` | default branch, contains PR #1 merge + initial README |
-| `origin/main` | `b98ab15` | in sync |
-| `features/backend_setup` (your HEAD) | `9c44ca3` | **46 commits ahead** of `main`, 2 behind |
+| `main` | `67932ba` | default branch; backend + frontend + database work merged |
+| `origin/main` | `67932ba` | in sync |
+| `features/backend_setup` | `aac52fa` | kept for history; already contained in `main` |
+| `backup/backend-setup-pre-merge` | `8ddc76a` | pre-merge safety snapshot |
 | `features/frontend_setup` | `c3af7e4` | stale: 1 commit ("react init"), behind `main` |
 
-The only content conflict is `README.md`: `main` got a short 57-line README in
-`c4a87eb`, and your branch has the real 315-line README. Git sees "both sides added
-this file" (`CONFLICT (add/add)`). Resolve it by keeping **your** README.
+When this runbook was first written, `main` was `b98ab15` and had no `frontend/`
+directory. The merge introduced it and there was exactly one conflict — `README.md`
+(both sides added it). Resolve that conflict by keeping the branch's 315-line README.
 
-Everything else auto-merges. I verified this with a real trial merge before writing
+Everything else auto-merged. I verified this with a real trial merge before writing
 these steps.
-
-Also note: `main` currently has **no `frontend/` directory at all** (only `backend/`,
-`contributors.txt` and `README.md`). The merge adds the whole frontend, which is expected
-and is why there is no frontend conflict.
 
 ---
 
 ## Step 0 — commit these task briefs first
-
-`docs/team/` is currently untracked. Commit it on your branch so the merge carries it
-and your teammates can actually open the files:
 
 ```bash
 git add docs/team
@@ -239,6 +241,28 @@ counts for them. A merge commit also works, but the history becomes noisy.
 - The PR was merged into `main` — commits that only exist on an unmerged branch do
   not appear on a profile.
 - The commit author is them, not you — do not commit their work for them.
+
+---
+
+## Why GitHub CI may fail even when the code is fine
+
+If every job fails in 2–4 seconds with no log steps, click a failed job and read the
+annotation. The repo hit this exact state between 9 and 20 November 2026:
+
+> The job was not started because your account is locked due to a billing issue.
+
+That is a GitHub **account** problem, not a code problem. Fix it in
+**GitHub → Settings → Billing & plans** (payment method or spending limit), then open
+**Actions → CI → Run workflow** (the workflow now supports `workflow_dispatch`). Until
+then, run the same checks locally:
+
+```bash
+make test
+make it
+cd frontend && npm ci && npm run build
+docker build -t ops-backend ./backend
+docker build -t ops-frontend ./frontend
+```
 
 ---
 

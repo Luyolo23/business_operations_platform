@@ -208,7 +208,7 @@ The compose file injects `AI_API_KEY` from your `.env` into the container at run
 |-----|----------------|
 | Backend unit tests | `mvn -B test -DexcludedGroups=integration` |
 | Backend integration tests | `mvn -B test -Dgroups=integration` against Testcontainers Postgres |
-| Frontend build | `npm ci && npm run build` (typecheck + production bundle) |
+| Frontend build | `npm ci && npm run lint && npm run build` (lint + typecheck + production bundle) |
 | Docker images | Builds both images, asserts they run non-root, and checks the frontend security headers |
 
 To use the LLM provider in your own workflows, add `AI_API_KEY` as a repository
@@ -288,7 +288,7 @@ Set `AI_PROVIDER=mock` (the default) to use the built-in keyword classifier and 
 ## Running Tests
 
 ```bash
-# Unit tests only (no Docker required)+++
+# Unit tests only (no Docker required)
 cd backend && mvn test -DexcludedGroups=integration
 
 # Integration tests (Docker required for Testcontainers)
@@ -311,5 +311,6 @@ make live     # live Groq API tests
 |----------|---------|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Service diagram, module map, ticket lifecycle, security model |
 | [`docs/API.md`](docs/API.md) | All REST endpoints with auth requirements and request/response shapes |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Production runbook: env vars, first admin bootstrap, backups, TLS, troubleshooting |
 | [`docs/TEAM_GUIDE.md`](docs/TEAM_GUIDE.md) | Ownership, branching, how to add modules, secrets guide |
 | [`frontend/README.md`](frontend/README.md) | Frontend-specific setup and design notes |

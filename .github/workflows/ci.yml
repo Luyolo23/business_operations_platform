@@ -2,8 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [main, master, "features/**"]
+    branches: [main, master, "features/**", "feat/**", "fix/**"]
   pull_request:
+  # Lets you re-run the pipeline from the Actions tab after fixing account-level
+  # problems (for example the billing lock that blocks runners).
+  workflow_dispatch:
 
 # Least privilege: every job only needs to read the repository.
 permissions:
@@ -78,6 +81,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm run build
 
   docker:

@@ -1,5 +1,9 @@
 # Team Workflow — how each member contributes
 
+> **Status:** all tasks in this folder are now implemented on `main`. The briefs are kept
+> as the record of how the work was split between the four roles. Build/lint/test
+> commands below still apply.
+
 This file is for all four team members. Read it once, then open your own task file:
 
 | Person | Role | Task file |
@@ -90,7 +94,7 @@ The scope in brackets is optional but useful: `(ai)`, `(ui)`, `(db)`, `(security
 | Backend unit tests | `make test` | nothing |
 | Backend integration tests | `make it` | Docker |
 | Frontend build | `cd frontend && npm ci && npm run build` | Node 22 |
-| Frontend lint (after the lint task) | `cd frontend && npm run lint` | Node 22 |
+| Frontend lint | `cd frontend && npm run lint` | Node 22 |
 
 If you touched SQL, also start the app once so Flyway applies your migration:
 
@@ -116,6 +120,11 @@ Then on GitHub:
 3. Title = your commit message, description = what changed and how you tested it
 4. Create pull request
 5. Wait for CI to go green (backend unit tests, frontend build, Docker build)
+
+> If every job fails within seconds and shows no steps, that is the GitHub billing
+> lock, not your code — see `docs/team/MAINTAINER_MERGE.md`. Run the checks locally
+> (`make test`, `npm run build`) and ask the backend lead to re-run CI once billing is fixed.
+
 6. **Squash and merge** → confirm
 
 Once merged, the commit lands on `main` and shows in your contribution history.

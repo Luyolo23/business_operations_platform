@@ -84,18 +84,19 @@ Workflow: `.github/workflows/ci.yml`. It runs on pushes to `main`, `master` and
 |-----|--------------|
 | `Backend unit tests` | `cd backend && mvn -B test -DexcludedGroups=integration` |
 | `Backend integration tests` | `cd backend && mvn -B test -Dgroups=integration` (Testcontainers) |
-| `Frontend build` | Node 22, `cd frontend && npm ci && npm run build` |
+| `Frontend build` | Node 22, `cd frontend && npm ci && npm run lint && npm run build` |
 | `Docker images` | Builds both images, checks they run non-root, and verifies the Nginx security headers |
 
 The workflow uses `contents: read`, cancels superseded runs on the same ref, and
 uploads Surefire reports when backend tests fail. Dependabot checks Maven, npm,
 GitHub Actions and Docker updates weekly (`.github/dependabot.yml`).
 
-Still run locally before merging (not automated): frontend component tests and
-linting. There is currently no frontend test runner or ESLint config.
+Still run locally before merging (not automated): frontend component tests.
+There is currently no frontend test runner; ESLint runs in CI and via `make lint`.
 
 | Check | Command |
 |-------|---------|
+| Frontend lint | `cd frontend && npm run lint` |
 | Integration tests | `cd backend && mvn test -Dgroups=integration` (Docker required) |
 | Full stack smoke test | `docker compose -f docker-compose.full.yml up --build` |
 
